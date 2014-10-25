@@ -26,7 +26,7 @@ __headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2',
 }
 __opener.addheaders = __headers.items()
-__emapa_connection = threading.local()
+__emapa_connection = threading.local() # na wypadek, gdybym chciał użyć  multiprocessing.pool.map
 __emapa_connection.conn = {}
 
 # setup
@@ -67,6 +67,7 @@ def getInit(gmina_url):
     return {
         'bbox': bbox,
         'wms_addr': address,
+        'terc': init_data['teryt'],
     }
 
 # zwraca bbox w EPSG:2180
