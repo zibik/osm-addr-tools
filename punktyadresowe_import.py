@@ -1,32 +1,45 @@
 #!/usr/bin/env python3.4
 #
 from mapping import addr_map
-from urllib.request import urlopen
-from urllib.parse import urlencode
-import json
-from pyproj import Proj
-from bs4 import BeautifulSoup
+#from urllib.request import urlopen
+from urllib.parse import urlencode, urlparse
 import urllib.request
-from wand.image import Image, Color
+import json
 import math
+import threading
+import http.client
+from bs4 import BeautifulSoup
+from pyproj import Proj
 from tempfile import NamedTemporaryFile
+from wand.image import Image
 import skimage
 import skimage.io
+import numpy
 
 
 # stałe
-_BLUE = Color('#00f')
 _EPSG2180 = Proj(init='epsg:2180')
 
 # User-Agent dla requestów
 __opener = urllib.request.build_opener()
-__opener.addheaders = [
-    ('User-Agent', 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2'),
-]
+__headers = { 
+    'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2',
+}
+__opener.addheaders = __headers.items()
+__emapa_connection = threading.local()
+__emapa_connection.conn = {}
 
 # setup
 urllib.request.install_opener(__opener)
 skimage.io.use_plugin('freeimage')
+
+def urlopen(url):
+    o = urlparse(url)
+    if not __emapa_connection.conn.get(o.netloc):
+        __emapa_connection.conn[o.netloc] = http.client.HTTPConnection(o.netloc)
+    conn = __emapa_connection.conn[o.netloc]
+    conn.request('GET', url, headers=__headers)
+    return conn.getresponse()
         
 def getInit(gmina_url):
     url = gmina_url + '/application/system/init.php'
@@ -92,21 +105,20 @@ def fetchTiles(wms_addr, bbox):
             #if True:
                 with Image(blob=blob) as image:
                     image.resize(math.floor(offset/2), math.floor(offset/2), filter='point')
-                    for (rown, row) in enumerate(image):
-                        for (coln, col) in enumerate(row):
-                            #if col == _BLUE:
-                            if col.red_int8 < 100: #trochę szybsze, niż sprawdzenie, czy niebieski
-                                point = analyzePoint(fetchPoint(wms_addr, x, y, offset, coln*2, rown*2))
-                                # jeden x,y jeden adres
-                                #if tuple(point['location'].values()) in ret:
-                                ret[tuple(point['location'].values())] = point
-            return ret
+                    skimg = imageToSkimage(image)
+                    points = map(list, numpy.where(skimage.img_as_bool(skimg)==False)[:2])
+                    for (rown, coln) in zip(*points):
+                        point = analyzePoint(fetchPoint(wms_addr, x, y, offset, coln*2, rown*2))
+                        # jeden x,y jeden adres
+                        #if tuple(point['location'].values()) in ret:
+                        ret[tuple(point['location'].values())] = point
     return ret                                
                         
             
 def imageToSkimage(img):
     with NamedTemporaryFile(suffix='.png') as temp:
-        temp.write(img.make_blob(format='png'))
+        temp.write(img.make_blob(format='PNG24'))
+        temp.flush()
         return skimage.io.imread(temp.name)
 
 def fetchImage(wms_addr, x, y, offset):
@@ -186,7 +198,7 @@ def analyzePoint(html):
 def main():
     conf = getInit('http://milawa.e-mapa.net')
     ret = fetchTiles(conf['wms_addr'], conf['bbox'])
-    json.dump(ret.values(), open("test.json", "w+"))
+    json.dump(list(ret.values()), open("test.json", "w+"))
 
 if __name__ == '__main__':
     main()
