@@ -138,7 +138,7 @@ def analyzePoint(soup):
         map(lambda x: x.text, soup.find_all('td'))
     ))
     try:
-        (lat, lon) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', '))
+        (lon, lat) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', '))
         (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(')
         (city_name, city_id) = kv[str_normalize('Miejscowość(Id GUS)')].rsplit('(')
 
