@@ -138,17 +138,17 @@ def analyzePoint(soup):
         map(lambda x: x.text, soup.find_all('td'))
     ))
     try:
-        (lat, lng) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', '))
+        (lat, lon) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', '))
         (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(')
         (city_name, city_id) = kv[str_normalize('Miejscowość(Id GUS)')].rsplit('(')
 
         ret = {
-            'location': {'lat': lat, 'lng': lng},
+            'location': {'lat': lat, 'lon': lon},
             'addr:housenumber': kv[str_normalize('Numer')],
             'source:addr': kv[str_normalize('Źródło danych')],
         }
         if kv[str_normalize('Kod pocztowy')].strip():
-            ret['addr:postcode'] = kv[str_normalize('Kod pocztowy')],
+            ret['addr:postcode'] = kv[str_normalize('Kod pocztowy')]
 
         if str_name.strip():
             ret['addr:street'] = str_name.strip()
@@ -171,7 +171,7 @@ def convertToOSM(dct):
     for (node_id, val) in enumerate(dct.values()):
         ret += '<node id="-%s" action="modify" visible="true" lat="%s" lon="%s">\n' % (node_id+1, 
                                                                         val['location']['lat'], 
-                                                                        val['location']['lng'])
+                                                                        val['location']['lon'])
         for i in ('addr:housenumber', 'source:addr', 'addr:postcode', 'addr:street', 'addr:city',
                     'teryt:sym_ul', 'addr:place', 'teryt:simc'):
             tagval = val.get(i)
