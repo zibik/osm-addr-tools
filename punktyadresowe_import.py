@@ -178,6 +178,7 @@ def convertToOSM(dct):
             if tagval:
                 ret += '<tag k="%s" v="%s" />\n' % (i, tagval)
         ret += '</node>\n'
+    ret += '</osm>'
     return ret
 
 def main():
