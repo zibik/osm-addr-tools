@@ -1,17 +1,28 @@
 #!/usr/bin/env python3.4
 #
-from mapping import addr_map
+# punktyadresowe_import.py CC-BY-SA 3.0 WiktorN
+#
+# dependencies:
+# Beautiful-Soup (http://www.crummy.com/software/BeautifulSoup/)
+#       pip install beautifulsoup4 
+#       easy_install beautifulsoup4
+#       apt-get install python-beautifulsoup4
+#       portmaster www/py-beautifulsoup
+#
+
+
 from urllib.parse import urlencode, urlparse
 import urllib.request
 from urllib.request import urlopen
 import json
-from bs4 import BeautifulSoup
-from pyproj import Proj
 import sys
+from bs4 import BeautifulSoup
+#from pyproj import Proj
+#from mapping import addr_map
 
 
 # stałe
-_EPSG2180 = Proj(init='epsg:2180')
+#_EPSG2180 = Proj(init='epsg:2180')
 
 # User-Agent dla requestów
 __opener = urllib.request.build_opener()
