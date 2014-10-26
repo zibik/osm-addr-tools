@@ -152,13 +152,12 @@ def analyzePoint(soup):
 
         if str_name.strip():
             ret['addr:street'] = str_name.strip()
-            ret['addr:city'] = city_name.strip()
             ret['teryt:sym_ul'] = str_id[:-1]
         else:
             ret['addr:place'] = city_name.strip()
         
+        ret['addr:city'] = city_name.strip()
         ret['teryt:simc'] = city_id[:-1]
-
         return ret
     except KeyError:
         print(soup)
@@ -200,6 +199,9 @@ Creates file [gmina].osm with result
     osm = convertToOSM(ret)
     with open(gmina+'.osm', "w+b") as f:
         f.write(osm.encode('utf-8'))
+
+    with open(gmina+'.json', "w+") as f:
+        json.dump(list(ret.values()), f)
 
 if __name__ == '__main__':
     main()
