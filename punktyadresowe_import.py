@@ -7,6 +7,7 @@ from urllib.request import urlopen
 import json
 from bs4 import BeautifulSoup
 from pyproj import Proj
+import sys
 
 
 # stałe
@@ -121,7 +122,7 @@ def analyzePoint(soup):
 
         ret = {
             'location': {'lat': lat, 'lng': lng},
-            'addr:househumber': kv['Numer'],
+            'addr:housenumber': kv['Numer'],
             'source:addr': kv['Źródło danych'],
         }
         if kv['Kod pocztowy'].strip():
@@ -142,11 +143,41 @@ def analyzePoint(soup):
         print(kv)
         raise
     
+def convertToOSM(dct):
+    ret = """<?xml version='1.0' encoding='UTF-8'?>
+<osm version='0.6' upload='false' generator='punktyadresowe_import.php'>
+"""
+    for (node_id, val) in enumerate(dct.values()):
+        ret += '<node id="-%s" action="modify" visible="true" lat="%s" lon="%s">\n' % (node_id+1, 
+                                                                        val['location']['lat'], 
+                                                                        val['location']['lng'])
+        for i in ('addr:housenumber', 'source:addr', 'addr:postcode', 'addr:street', 'addr:city',
+                    'teryt:sym_ul', 'addr:place', 'teryt:simc'):
+            tagval = val.get(i)
+            if tagval:
+                ret += '<tag k="%s" v="%s" />\n' % (i, tagval)
+        ret += '</node>\n'
+    return ret
 
 def main():
-    conf = getInit('http://milawa.e-mapa.net')
+    if len(sys.argv) != 2:
+        print("""punktyadresowe_import.py CC-BY-SA 3.0@WiktorN
+
+Usage:
+    punktyadresowe_importy.py [gmina]
+
+Example:
+    punktyadresowe_import.py milawa
+
+Creates file [gmina].osm with result
+""")
+        sys.exit(1)
+    gmina = sys.argv[1]
+    conf = getInit('http://%s.e-mapa.net' % (gmina,))
     ret = fetchTiles(conf['wms_addr'], conf['bbox'])
-    json.dump(list(ret.values()), open("test.json", "w+"))
+    osm = convertToOSM(ret)
+    with open(gmina+'.osm', "w+") as f:
+        f.write(osm)
 
 if __name__ == '__main__':
     main()
