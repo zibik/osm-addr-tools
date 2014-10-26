@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.4
 #
-# punktyadresowe_import.py CC-BY-SA 3.0 WiktorN
+# punktyadresowe_import.py CC-BY-NC-SA 3.0 WiktorN
 #
 # Based on work by Grzegorz Sapijaszko (http://wiki.openstreetmap.org/wiki/User:Gsapijaszko/punktyadresowe_import)
 #
