@@ -1,20 +1,12 @@
 #!/usr/bin/env python3.4
 #
 from mapping import addr_map
-#from urllib.request import urlopen
 from urllib.parse import urlencode, urlparse
 import urllib.request
+from urllib.request import urlopen
 import json
-import math
-import threading
-import http.client
 from bs4 import BeautifulSoup
 from pyproj import Proj
-from tempfile import NamedTemporaryFile
-from wand.image import Image
-import skimage
-import skimage.io
-import numpy
 
 
 # stałe
@@ -26,21 +18,10 @@ __headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2',
 }
 __opener.addheaders = __headers.items()
-__emapa_connection = threading.local() # na wypadek, gdybym chciał użyć  multiprocessing.pool.map
-__emapa_connection.conn = {}
 
 # setup
 urllib.request.install_opener(__opener)
-skimage.io.use_plugin('freeimage')
 
-def urlopen(url):
-    o = urlparse(url)
-    if not __emapa_connection.conn.get(o.netloc):
-        __emapa_connection.conn[o.netloc] = http.client.HTTPConnection(o.netloc)
-    conn = __emapa_connection.conn[o.netloc]
-    conn.request('GET', url, headers=__headers)
-    return conn.getresponse()
-        
 def getInit(gmina_url):
     url = gmina_url + '/application/system/init.php'
     print(url)
@@ -90,56 +71,14 @@ def getBBox(wms_addr):
 
 
 def fetchTiles(wms_addr, bbox):
-    offset = 4000 # wielkość kafelka
-    ret = {}
-
-    for x in range(
-            math.floor(bbox['minx']),
-            math.ceil(bbox['maxx']), #ponieważ to jest i tak zachodni brzeg kafelka, to nie muszę dodawać offset
-            offset):
-        for y in range(
-                math.floor(bbox['miny']), 
-                math.ceil(bbox['maxy']), # ponieważ jest to południowy brzeg kafelka, to nie muszę dodawać offset
-                offset):
-            blob = fetchImage(wms_addr, x, y, offset)
-            if len(blob) > 56208: #pusty PNG 4000x4000
-            #if True:
-                with Image(blob=blob) as image:
-                    image.resize(math.floor(offset/2), math.floor(offset/2), filter='point')
-                    skimg = imageToSkimage(image)
-                    points = map(list, numpy.where(skimage.img_as_bool(skimg)==False)[:2])
-                    for (rown, coln) in zip(*points):
-                        point = analyzePoint(fetchPoint(wms_addr, x, y, offset, coln*2, rown*2))
-                        # jeden x,y jeden adres
-                        #if tuple(point['location'].values()) in ret:
-                        ret[tuple(point['location'].values())] = point
-    return ret                                
+    return analyzePoints(
+                fetchPoint(
+                    wms_addr, 
+                    bbox['minx'], bbox['miny'], bbox['maxx'], bbox['maxy'], 
+                    0, 0)) # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
                         
-            
-def imageToSkimage(img):
-    with NamedTemporaryFile(suffix='.png') as temp:
-        temp.write(img.make_blob(format='PNG24'))
-        temp.flush()
-        return skimage.io.imread(temp.name)
 
-def fetchImage(wms_addr, x, y, offset):
-    params = {
-        'VERSION': '1.1.1',
-        'SERVICE': 'WMS',
-        'REQUEST': 'GetMap',
-        'LAYERS': 'punkty',
-        'FORMAT': 'image/png',
-        'SRS': 'EPSG:2180',
-        'WIDTH': offset,
-        'HEIGHT': offset,
-        'BBOX': '%s,%s,%s,%s' % (x, y, x+offset, y+offset),
-    }
-    url = "%s&%s" % (wms_addr, urlencode(params))
-    print(url)
-    data = urlopen(url)
-    return data.read()
-
-def fetchPoint(wms_addr, x, y, offset, pointx, pointy):
+def fetchPoint(wms_addr, w, s, e, n, pointx, pointy):
     params = {
         'VERSION': '1.1.1',
         'SERVICE': 'WMS',
@@ -149,9 +88,10 @@ def fetchPoint(wms_addr, x, y, offset, pointx, pointy):
         'FORMAT': 'image/png',
         'INFO_FORMAT': 'text/html',
         'SRS': 'EPSG:2180',
-        'WIDTH': offset,
-        'HEIGHT': offset,
-        'BBOX': '%s,%s,%s,%s' % (x, y, x+offset, y+offset),
+        'FEATURE_COUNT': '10000000', # wystarczająco dużo, by ogarnąć każdą sytuację
+        'WIDTH': 2,
+        'HEIGHT': 2,
+        'BBOX': '%s,%s,%s,%s' % (w, s, e, n),
         'X': pointx,
         'Y': pointy,
     }
@@ -161,11 +101,18 @@ def fetchPoint(wms_addr, x, y, offset, pointx, pointy):
     data = urlopen(url).read()
     return data
 
-def analyzePoint(html):
+def analyzePoints(html):
     soup = BeautifulSoup(html)
+    ret = {}
+    for i in soup.find_all('table'):
+        point = analyzePoint(i)
+        ret[tuple(point['location'].values())] = point
+    return ret
+
+def analyzePoint(soup):
     kv = dict(zip(
-        map(lambda x: x.text, soup.table.find_all('th')),
-        map(lambda x: x.text, soup.table.find_all('td'))
+        map(lambda x: x.text, soup.find_all('th')),
+        map(lambda x: x.text, soup.find_all('td'))
     ))
     try:
         (lat, lng) = map(lambda x: x[2:], kv['GPS (WGS 84)'].split(', '))
