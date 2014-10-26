@@ -2,6 +2,8 @@
 #
 # punktyadresowe_import.py CC-BY-SA 3.0 WiktorN
 #
+# Based on work by Grzegorz Sapijaszko (http://wiki.openstreetmap.org/wiki/User:Gsapijaszko/punktyadresowe_import)
+#
 # dependencies:
 # Beautiful-Soup (http://www.crummy.com/software/BeautifulSoup/)
 #       pip install beautifulsoup4 
