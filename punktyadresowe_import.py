@@ -1,4 +1,5 @@
 #!/usr/bin/env python3.4
+# # -*- coding: UTF-8 -*-
 #
 # punktyadresowe_import.py CC-BY-NC-SA 3.0 WiktorN
 #
@@ -12,12 +13,18 @@
 #       portmaster www/py-beautifulsoup
 #
 
-
-from urllib.parse import urlencode, urlparse
-import urllib.request
-from urllib.request import urlopen
-import json
 import sys
+if sys.version_info.major == 2:
+    from urllib import urlencode
+    from urllib2 import urlparse, urlopen
+    import urllib2 as urequest
+    str_normalize = lambda x: x.decode('utf-8')
+else:
+    from urllib.parse import urlencode, urlparse
+    import urllib.request as urequest
+    from urllib.request import urlopen
+    str_normalize = lambda x: x
+import json
 from bs4 import BeautifulSoup
 #from pyproj import Proj
 #from mapping import addr_map
@@ -27,14 +34,16 @@ from bs4 import BeautifulSoup
 #_EPSG2180 = Proj(init='epsg:2180')
 
 # User-Agent dla requestów
-__opener = urllib.request.build_opener()
+__opener = urequest.build_opener()
 __headers = { 
     'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2',
 }
 __opener.addheaders = __headers.items()
 
 # setup
-urllib.request.install_opener(__opener)
+urequest.install_opener(__opener)
+
+
 
 def getInit(gmina_url):
     url = gmina_url + '/application/system/init.php'
@@ -129,17 +138,17 @@ def analyzePoint(soup):
         map(lambda x: x.text, soup.find_all('td'))
     ))
     try:
-        (lat, lng) = map(lambda x: x[2:], kv['GPS (WGS 84)'].split(', '))
-        (str_name, str_id) = kv['Nazwa ulicy(Id GUS)'].rsplit('(')
-        (city_name, city_id) = kv['Miejscowość(Id GUS)'].rsplit('(')
+        (lat, lng) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', '))
+        (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(')
+        (city_name, city_id) = kv[str_normalize('Miejscowość(Id GUS)')].rsplit('(')
 
         ret = {
             'location': {'lat': lat, 'lng': lng},
-            'addr:housenumber': kv['Numer'],
-            'source:addr': kv['Źródło danych'],
+            'addr:housenumber': kv[str_normalize('Numer')],
+            'source:addr': kv[str_normalize('Źródło danych')],
         }
-        if kv['Kod pocztowy'].strip():
-            ret['addr:postcode'] = kv['Kod pocztowy'],
+        if kv[str_normalize('Kod pocztowy')].strip():
+            ret['addr:postcode'] = kv[str_normalize('Kod pocztowy')],
 
         if str_name.strip():
             ret['addr:street'] = str_name.strip()
@@ -189,8 +198,8 @@ Creates file [gmina].osm with result
     conf = getInit('http://%s.e-mapa.net' % (gmina,))
     ret = fetchTiles(conf['wms_addr'], conf['bbox'])
     osm = convertToOSM(ret)
-    with open(gmina+'.osm', "w+") as f:
-        f.write(osm)
+    with open(gmina+'.osm', "w+b") as f:
+        f.write(osm.encode('utf-8'))
 
 if __name__ == '__main__':
     main()
