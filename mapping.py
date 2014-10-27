@@ -1,3 +1,5 @@
+# # -*- coding: UTF-8 -*-
+
 addr_map = {
  '1-go Maja': '1 Maja',
  '1-ego Maja': '1 Maja',
@@ -429,10 +431,14 @@ addr_map = {
  'Żymierskiego': 'Generała Michała Roli-Żymierskiego',
  'Żółkiewskiego Stanisława': 'Stanisława Żółkiewskiego',
 }
+import sys
+if sys.version_info.major == 2:
+    addr_map = dict(map(lambda x: (x[0].decode('utf-8'), x[1].decode('utf-8')), addr_map.items()))
 
 def mapstreet(strname, symul):
     try:
         ret = addr_map[strname]
+        #print("mapping %s -> %s" % (strname, ret))
         return ret
     except KeyError:
         # get hint by symul
