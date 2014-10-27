@@ -434,6 +434,83 @@ addr_map = {
 import sys
 if sys.version_info.major == 2:
     addr_map = dict(map(lambda x: (x[0].decode('utf-8'), x[1].decode('utf-8')), addr_map.items()))
+    from urllib2 import urlopen
+else:
+    from urllib.request import urlopen
+
+from bs4 import BeautifulSoup
+import pickle
+import time
+
+
+query = """
+<osm-script output="xml">
+  <query into="boundryarea" type="area">
+    <has-kv k="boundary" v="administrative"/>
+    <has-kv k="admin_level" v="2"/>
+    <has-kv k="name" v="Polska"/>
+    <has-kv k="type" v="boundary"/>
+  </query>
+  <union>
+    <query type="node">
+      <area-query from="boundryarea"/>
+      <has-kv k="teryt:sym_ul" modv="" v=""/>
+    </query>
+    <query type="way">
+      <area-query from="boundryarea"/>
+      <has-kv k="teryt:sym_ul" modv="" v=""/>
+    </query>
+  </union>
+  <print mode="tags"/>
+</osm-script>
+"""
+
+def getVal(node, tag):
+    n = node.find('tag', k=tag)
+    return n['v'] if n else None
+
+def fetchData():
+    overpass_url = 'http://overpass-api.de/api/interpreter?data=%5Bout%3Axml%5D%3Barea%5B%22boundary%22%3D%22administrative%22%5D%5B%22admin%5Flevel%22%3D%222%22%5D%5B%22name%22%3D%22Polska%22%5D%5B%22type%22%3D%22boundary%22%5D%2D%3E%2Eboundryarea%3B%28node%28area%2Eboundryarea%29%5B%22teryt%3Asym%5Ful%22%5D%3Bway%28area%2Eboundryarea%29%5B%22teryt%3Asym%5Ful%22%5D%3B%29%3Bout%3B'
+    soup = BeautifulSoup(urlopen(overpass_url))
+    ret = {}
+    for tag in soup.find_all(['node', 'way']):
+        symul = getVal(tag, 'teryt:sym_ul')
+        street = getVal(tag, 'addr:street')
+        if street:
+            try:
+                entry = ret[symul]
+            except KeyError:
+                entry = {}
+                ret[symul] = entry
+            try:
+                entry[street] += 1
+            except KeyError:
+                entry[street] = 1
+    return ret
+
+def getDict():
+    try:
+        with open("teryt_symul.db", "rb") as f:
+            data = pickle.load(f)
+    except IOError:
+        import traceback
+        traceback.print_exc()
+        data = {
+            'time': 0
+        }
+    if data['time'] < time.time() - 7*24*60*60:
+        # time for update
+        print("Updating teryt:sym_ul data from OSM, it may take a while")
+        new = fetchData()
+        new = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, new.items()))
+        data['dct'] = new
+        data['time'] = time.time()
+        with open("teryt_symul.db", "w+b") as f:
+            pickle.dump(data, f)
+    return data['dct']
+
+__mapping_symul = getDict()
+__printed = set()
 
 def mapstreet(strname, symul):
     try:
@@ -441,5 +518,20 @@ def mapstreet(strname, symul):
         #print("mapping %s -> %s" % (strname, ret))
         return ret
     except KeyError:
-        # get hint by symul
-        return strname
+        try:
+            ret = __mapping_symul[symul]
+            if ret != strname and ret not in __printed:
+                print("mapping %s -> %s" % (strname, ret))
+                __printed.add(ret)
+            return ret
+        except KeyError:
+            return strname
+
+def main():
+    dct = fetchData()
+    dct = dict(filter(lambda x: len(x[1])>1, dct.items()))
+    for k, v in sorted(dct.items(), key=lambda x: len(x[1])):
+        print("%s -> %s" % (k, v))
+       
+if __name__ == '__main__':
+    main()
