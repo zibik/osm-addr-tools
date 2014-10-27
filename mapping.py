@@ -429,3 +429,11 @@ addr_map = {
  'Żymierskiego': 'Generała Michała Roli-Żymierskiego',
  'Żółkiewskiego Stanisława': 'Stanisława Żółkiewskiego',
 }
+
+def mapstreet(strname, symul):
+    try:
+        ret = addr_map[strname]
+        return ret
+    except KeyError:
+        # get hint by symul
+        return strname

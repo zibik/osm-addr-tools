@@ -27,7 +27,7 @@ else:
 import json
 from bs4 import BeautifulSoup
 #from pyproj import Proj
-#from mapping import addr_map
+from mapping import mapstreet
 
 
 # stałe
@@ -151,7 +151,8 @@ def analyzePoint(soup):
             ret['addr:postcode'] = kv[str_normalize('Kod pocztowy')]
 
         if str_name.strip():
-            ret['addr:street'] = str_name.strip()
+            # TODO: clean names via sym_ul and dictionary
+            ret['addr:street'] = mapstreet(str_name.strip().replace('  ', ' '), str_id[:-1])
             ret['teryt:sym_ul'] = str_id[:-1]
         else:
             ret['addr:place'] = city_name.strip()
