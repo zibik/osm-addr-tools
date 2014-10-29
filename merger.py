@@ -103,8 +103,6 @@ def entrystr(entry):
 def _processOne(osmdb, entry):
     entry_point = tuple(map(float, (entry['location']['lat'], entry['location']['lon'])))
 
-    if entry['teryt:sym_ul'] == '00285' and entry['addr:housenumber'] == '10':
-        print("Got ya")
     existing = osmdb.getbyaddress(_getAddr(entry))
     if existing:
         # we have something with this address in db
