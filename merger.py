@@ -7,10 +7,11 @@ from punktyadresowe_import import iMPA
 from overpass import getAddresses
 
 # depends:
-# py-proj
-# py-rtree
-# py-shapely
-# py-beautifulsoup
+# graphics/py-pyproj
+# devel/py-rtree
+# devel/py-shapely
+# www/py-beautifulsoup
+# devel/py-lxml
 
 __geod = pyproj.Geod(ellps="WGS84")
 
@@ -19,10 +20,16 @@ def distance(a, b):
     return __geod.inv(a[0], a[1], b[0], b[1])[2]
 
 def _getAddr(dct):
-    return (
-        dct['addr:city'],
-        dct.get('addr:street', dct.get('addr:place')),
-        dct['addr:housenumber'])
+    if dct.get('addr:street'):
+        return (
+            dct['addr:city'],
+            dct['addr:street'],
+            dct['addr:housenumber'])
+    else:
+        return (
+            None,
+            dct['addr:place'],
+            dct['addr:housenumber'])
 
 def _updateTag(node, key, val):
     """returns True if something was modified"""
@@ -48,7 +55,8 @@ def _createPoint(entry):
     print("Adding point %s" % (node['id'],))
     ret.append(node)
     def addTag(key, val):
-        node.append(ret.new_tag(name='tag', k=key, v=val))
+        if val:
+            node.append(ret.new_tag(name='tag', k=key, v=val))
 
     addTag('addr:city', entry['addr:city'])
     if 'addr:street' in entry:
@@ -58,8 +66,8 @@ def _createPoint(entry):
 
     addTag('addr:housenumber', entry['addr:housenumber'])
     addTag('source:addr', entry['source:addr'])
-    addTag('teryt:sym_ul', entry['teryt:sym_ul'])
-    addTag('teryt:simc', entry['teryt:simc'])
+    addTag('teryt:sym_ul', entry.get('teryt:sym_ul'))
+    addTag('teryt:simc', entry.get('teryt:simc'))
     return node
         
 
@@ -67,8 +75,8 @@ def _createPoint(entry):
 
 def _updateNode(node, entry):
     ret = False
-    ret |= _updateTag(node, 'addr:city', entry['addr:city'])
     if 'addr:street' in entry:
+        ret |= _updateTag(node, 'addr:city', entry['addr:city'])
         ret |= _updateTag(node, 'addr:street', entry['addr:street'])
         rmv = node.find('tag', k='addr:place')
         if rmv:
@@ -80,7 +88,10 @@ def _updateNode(node, entry):
         if rmv:
             ret |= bool(rmv.extract())
             assert ret == True
-        ret |= bool(node.find('tag', k='addr:street').extract())
+        rmv = node.find('tag', k='addr:city')
+        if rmv:
+            ret |= bool(rmv.extract())
+            assert ret == True
     ret |= _updateTag(node, 'addr:housenumber', entry['addr:housenumber'])
     ret |= _updateTag(node, 'source:addr', entry['source:addr'])
     #ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
@@ -153,11 +164,17 @@ def _processOne(osmdb, entry):
                 print("Adding new node within building")
                 return _createPoint(entry)
     # no address existing, no candidates
+    c = candidates[0]
+    if c['lon'] == entry['location']['lon'] and c['lat'] == entry['location']['lat']:
+        # same location, can't be coincidence
+        # leave it alone?
+        # update street names?
+        return _updatePoint(c, entry)
     return _createPoint(entry)
 
 def getEmptyOsm(meta):
-    #ret = BeautifulSoup("", "xml")
-    ret = BeautifulSoup()
+    ret = BeautifulSoup("", "xml")
+    #ret = BeautifulSoup()
     osm = ret.new_tag('osm', version="0.6", generator="import adresy merge.py")
     ret.append(osm)
     nt = ret.new_tag('note')
@@ -203,10 +220,10 @@ def main():
     #osm = BeautifulSoup(open("adresy.osm"))
     #imp = json.load(open("milawa.json"))
     #ret = mergeInc(osm, imp)
-    name = "milawa"
+    name = "krotoszyn"
     imp = iMPA(name)
     terc = imp.getConf()['terc']
-
+    
     addr = getAddresses(terc)
     data = imp.fetchTiles()
 
