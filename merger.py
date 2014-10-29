@@ -128,10 +128,6 @@ def _processOne(osmdb, entry):
     # look for building nearby
     candidates = list(osmdb.nearest(entry_point, num_results=10))
 
-    def getbbox(soup):
-        b = soup.bounds
-        return tuple(map(float, (b['minlat'], b['minlon'], b['maxlat'], b['maxlon'])))
-
     candidates_within = list(filter(lambda x: x.name in ('way', 'relation') and Point(entry_point).within(osmdb.getShape(x)), candidates))
     if candidates_within:
         c = candidates_within[0]
