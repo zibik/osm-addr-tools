@@ -15,7 +15,11 @@ def _getId(soup):
     return __multipliers[soup.name](int(soup['id']))
 
 def _getVal(soup, key):
-    return soup.find(k=key).get('v')
+    tag = soup.find(k=key)
+    if tag:
+        return tag.get('v')
+    else:
+        return None
 
 def _getAddr(soup):
     """converts tags to address tuple"""
@@ -23,6 +27,7 @@ def _getAddr(soup):
     street = _getVal(soup, 'addr:street')
     if not street:
         street = _getVal(soup, 'addr:place')
+        city = None
     housenumber = _getVal(soup, 'addr:housenumber')
     return (city, street, housenumber)
 
@@ -50,11 +55,12 @@ class OsmDb(object):
                 self.__index_entries[_id] = i
                 if i.find(k="addr:housenumber"):
                     key = _getAddr(i)
-                    lst = self.__addr_index.get(key)
-                    if not lst:
-                        lst = []
-                        self.__addr_index[key] = lst
-                    lst.append(i)
+                    if key:
+                        lst = self.__addr_index.get(key)
+                        if not lst:
+                            lst = []
+                            self.__addr_index[key] = lst
+                        lst.append(i)
             
             if i.name=='node':
                 self.__nodes[i['id']] = i
