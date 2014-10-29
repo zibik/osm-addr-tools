@@ -12,7 +12,7 @@ def getTag(node, tag):
 
 def makeEntry(soup):
     return {
-        'id': soup['id'],
+        'soup': soup,
         'addr:city': getTag(soup, 'addr:city'),
         'addr:place': getTag(soup, 'addr:place'),
         'addr:street': getTag(soup, 'addr:street'),
@@ -27,7 +27,7 @@ def markDuplicate(soup, lst):
     value = 'Duplicate (first)'
     while lst:
         dct = lst.pop()
-        node = soup.find(id=dct['id'])
+        node = dct['soup']
         nt = soup.new_tag('tag', k='fixme', value=value)
         node.append(nt)
         value = 'Duplicate'
@@ -37,7 +37,7 @@ def main():
         soup = BeautifulSoup(f)
 
         ret = {}
-        for i in soup.find_all(lambda x: int(x.get('id', 1)) < 0 and x.find('tag', k='addr:housenumber')):
+        for i in soup.osm.find_all(lambda x: int(x.get('id', 1)) < 0 and x.find('tag', k='addr:housenumber'), recursive=False):
             entry = makeEntry(i)
             key = makeKey(entry)
             try:
