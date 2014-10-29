@@ -441,6 +441,9 @@ else:
 from bs4 import BeautifulSoup
 import pickle
 import time
+import tempfile
+import os
+__DB_LOCATION = os.path.join(tempfile.gettempdir(), 'teryt_symul.db')
 
 
 query = """
@@ -490,7 +493,7 @@ def fetchData():
 
 def getDict():
     try:
-        with open("teryt_symul.db", "rb") as f:
+        with open(__DB_LOCATION, "rb") as f:
             data = pickle.load(f)
     except IOError:
         #import traceback
@@ -506,7 +509,7 @@ def getDict():
         data['dct'] = new
         data['time'] = time.time()
         try:
-            with open("teryt_symul.db", "w+b") as f:
+            with open(__DB_LOCATION, "w+b") as f:
                 pickle.dump(data, f)
         except: pass
     return data['dct']
@@ -528,6 +531,8 @@ def mapstreet(strname, symul):
             return ret
         except KeyError:
             return strname
+
+# TODO: add addr:city mapping by teryt:simc
 
 def main():
     dct = fetchData()
