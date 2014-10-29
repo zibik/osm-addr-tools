@@ -182,6 +182,16 @@ def convertToOSM(dct):
     ret += '</osm>'
     return ret
 
+class iMPA(object):
+    def __init__(self, gmina):
+        self.conf = getInit('http://%s.e-mapa.net' % (gmina,))
+
+    def getConf(self):
+        return self.conf
+
+    def fetchTiles(self):
+        return list(fetchTiles(self.conf['wms_addr'], self.conf['bbox']).values())
+
 def main():
     if len(sys.argv) != 2:
         print("""punktyadresowe_import.py CC-BY-SA 3.0@WiktorN

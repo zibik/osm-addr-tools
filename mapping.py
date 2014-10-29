@@ -493,8 +493,8 @@ def getDict():
         with open("teryt_symul.db", "rb") as f:
             data = pickle.load(f)
     except IOError:
-        import traceback
-        traceback.print_exc()
+        #import traceback
+        #traceback.print_exc()
         data = {
             'time': 0
         }
@@ -505,8 +505,10 @@ def getDict():
         new = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, new.items()))
         data['dct'] = new
         data['time'] = time.time()
-        with open("teryt_symul.db", "w+b") as f:
-            pickle.dump(data, f)
+        try:
+            with open("teryt_symul.db", "w+b") as f:
+                pickle.dump(data, f)
+        except: pass
     return data['dct']
 
 __mapping_symul = getDict()
