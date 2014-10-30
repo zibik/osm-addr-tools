@@ -28,7 +28,7 @@ def markDuplicate(soup, lst):
     while lst:
         dct = lst.pop()
         node = dct['soup']
-        nt = soup.new_tag('tag', k='fixme', value=value)
+        nt = soup.new_tag('tag', k='fixme', v=value)
         node.append(nt)
         value = 'Duplicate'
 
