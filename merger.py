@@ -8,16 +8,26 @@ from overpass import getAddresses
 
 # depends:
 # graphics/py-pyproj
+# python3-pyproj
+#
 # devel/py-rtree
+# libspatialindex-dev
+# easy_install3 Rtree
+#
 # devel/py-shapely
+# python3-shapely
+# 
 # www/py-beautifulsoup
+# python3-bs4
+#
 # devel/py-lxml
+# python3-lxml
 
 __geod = pyproj.Geod(ellps="WGS84")
 
 def distance(a, b):
     """returns distance betwen a and b points in meters"""
-    return __geod.inv(a[0], a[1], b[0], b[1])[2]
+    return __geod.inv(a[1], a[0], b[1], b[0])[2]
 
 def _getAddr(dct):
     if dct.get('addr:street'):
@@ -31,6 +41,14 @@ def _getAddr(dct):
             dct['addr:place'],
             dct['addr:housenumber'])
 
+def _getVal(node, key):
+    n = node.find('tag', k=key)
+    return n['v'] if n else None
+
+def _valEq(node, key, value):
+    v = _getVal(node, key)
+    return v == None or v == value
+
 def _updateTag(node, key, val):
     """returns True if something was modified"""
     n = node.find('tag', k=key)
@@ -39,7 +57,7 @@ def _updateTag(node, key, val):
             return False
         n['v'] = val
     else:
-        new = node.parent.parent.new_tag(name='tag', k=key, v=val)
+        new = BeautifulSoup().new_tag(name='tag', k=key, v=val)
         node.append(new)
     return True
 
@@ -58,15 +76,15 @@ def _createPoint(entry):
         if val:
             node.append(ret.new_tag(name='tag', k=key, v=val))
 
-    addTag('addr:city', entry['addr:city'])
     if 'addr:street' in entry:
         addTag('addr:street', entry['addr:street'])
+        addTag('addr:city', entry['addr:city'])
+        addTag('teryt:sym_ul', entry.get('teryt:sym_ul'))
     if 'addr:place' in entry:
         addTag('addr:place', entry['addr:place'])
 
     addTag('addr:housenumber', entry['addr:housenumber'])
     addTag('source:addr', entry['source:addr'])
-    addTag('teryt:sym_ul', entry.get('teryt:sym_ul'))
     addTag('teryt:simc', entry.get('teryt:simc'))
     return node
         
@@ -84,6 +102,7 @@ def _updateNode(node, entry):
             assert ret == True
     if 'addr:place' in entry:
         ret |= _updateTag(node, 'addr:place', entry['addr:place'])
+
         rmv = node.find('tag', k='addr:street')
         if rmv:
             ret |= bool(rmv.extract())
@@ -112,6 +131,10 @@ def entrystr(entry):
     return "%s, %s, %s" % (entry['addr:city'], entry['addr:street'] if entry['addr:street'] else entry['addr:place'], entry['addr:housenumber'])
 
 def _processOne(osmdb, entry):
+    """process one entry (of type dict) and work with OsmDb instance to find addresses to merge
+
+    returns list of updated nodes (might be more than one, but at most one will be added
+    """
     entry_point = tuple(map(float, (entry['location']['lat'], entry['location']['lon'])))
 
     existing = osmdb.getbyaddress(_getAddr(entry))
@@ -120,19 +143,15 @@ def _processOne(osmdb, entry):
         # sort by distance
         existing = sorted(map(lambda x: (distance(entry_point, getcenter(x)), x), existing))
 
-        #TODO: dodaj if-a czy existing to node, czy way. Jak node z samym adresem - to można przesuwać ile wlezie
-        if existing[0][1].name == 'node':
-            # just update the node with values, no moving
-            # TODO: update all?
-            if len(existing) > 1:
-                print("More than one address node for %s. Others not moved" % (entrystr(entry),))
-            return _updateNode(existing[0][1], entry)
-        if existing[0][0] < 100:
-            # if the closest one is closer by 100m then just update and return the node
-            return _updateNode(existing[0][1], entry)
-        else:
-            # we have something, but its futher than 100m
-            print("Address %s is %s away from imported location and not on a node. Not updating" % (entrystr(entry), existing[0][0]))
+        if len(existing) > 1:
+            # mark duplicates
+            print("More than one address node for %s. Marking duplicates. Distances: %s" % (entrystr(entry), 
+                                                                                            ", ".join(str(x[0]) for x in existing)))
+            for (n, (dist, node)) in enumerate(existing):
+                _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
+                node['action'] = 'modify' # keep all duplicates in file
+        # update address on all elements
+        return list(map(lambda x: _updateNode(x[1], entry), existing))    
 
     # look for building nearby
     candidates = list(osmdb.nearest(entry_point, num_results=10))
@@ -141,36 +160,36 @@ def _processOne(osmdb, entry):
     if candidates_within:
         c = candidates_within[0]
         if not c('tag', k='addr:housenumber'):
-            return _updateNode(c, entry)
+            return [_updateNode(c, entry)]
         else:
             # WARNING - candidate has an address
-            def getVal(node, key):
-                n = node.find('tag', k=key)
-                return n['v'] if n else None
-            
-            def valEq(node, key):
-                v = getVal(node, key)
-                return v == None or v == entry[key]
 
             # do not compare on street names - assume that OSM has better name
-            if valEq(c, 'addr:city') and valEq(c, 'addr:place') and valEq(c, 'addr:housenumber'):
-                if not valEq(c, 'addr:street'):
+            if _valEq(
+                    c, 'addr:city', entry['addr:city']) and _valEq(
+                    c, 'addr:place', entry['addr:place']) and _valEq(
+                    c, 'addr:housenumber', entry['addr:housenumber']):
+                if not _valEq(c, 'addr:street', entry['addr:street']):
+                    # take addr:street value from OSM instead of imported data
                     entry['addr:street'] = getVal(c, 'addr:street')
                 else:
                     print("Update not based on address but on location")
-                return _updateNode(c, entry)
+                return [_updateNode(c, entry)]
             else:
                 # address within a building that has different address, add a point, maybe building needs spliting
                 print("Adding new node within building")
-                return _createPoint(entry)
-    # no address existing, no candidates
+                return [_createPoint(entry)]
+    # no address existing, no candidates within buildings, check closest one
     c = candidates[0]
-    if c['lon'] == entry['location']['lon'] and c['lat'] == entry['location']['lat']:
-        # same location, can't be coincidence
-        # leave it alone?
-        # update street names?
-        return _updatePoint(c, entry)
-    return _createPoint(entry)
+    dist = distance(tuple(map(float, (c['lat'], c['lon']))), entry_point)
+    candidates_same = list(filter(lambda x: _getVal(x, 'addr:housenumber') == entry['addr:housenumber'] and \
+        distance(tuple(map(float, (x['lat'], x['lon']))), entry_point) < 2.0, candidates))
+    if len(candidates_same) > 0:
+        # same location, both are an address, and have same housenumber, can't be coincidence,
+        # probably mapper changed something
+        print("Found probably same address node at (%s, %s). Skipping. Address is: %s" % (entry['location']['lon'], entry['location']['lat'], entry))
+        return []
+    return [_createPoint(entry)]
 
 def getEmptyOsm(meta):
     ret = BeautifulSoup("", "xml")
@@ -187,6 +206,7 @@ def mergeInc(asis, impdata):
     asis = BeautifulSoup(asis)
     osmdb = OsmDb(asis)
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
+    new_nodes = [item for sublist in new_nodes for item in sublist]
     #ret = asis
     #for i in filter(lambda x: float(x['id']) < 0, new_nodes):
     #    asis.osm.append(i)
@@ -200,26 +220,30 @@ def mergeInc(asis, impdata):
     print("found %s nd_refs" % (len(nd_refs),))
     nodes = set(i['id'] for i in ret.find_all('node'))
     nd_refs = nd_refs - nodes
-    print("after removing existring nodes: %s" % (len(nd_refs),))
+    print("after removing existing nodes: %s" % (len(nd_refs),))
     for i in asis.find_all(lambda x: x.name == 'node' and x['id'] in nd_refs):
         ret.osm.append(i)
     return ret.prettify()
 
 def mergeFull(asis, impdata):
-    asis = BeautifulSoup(asis)
+    asis = BeautifulSoup(asis, "xml")
     osmdb = OsmDb(asis)
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
+    new_nodes = [item for sublist in new_nodes for item in sublist]
     ret = asis
+    for i in filter(lambda x: x.get('action') == 'modify',new_nodes):
+        _updateTag(i, 'import:action', 'modify')
     for i in filter(lambda x: float(x['id']) < 0, new_nodes):
         asis.osm.append(i)
     return asis.prettify()
         
     
+def testLocal():
+    osm = open("adresy.osm").read()
+    imp = json.load(open("krotoszyn.json"))
+    return (osm, imp)
 
-def main():
-    #osm = BeautifulSoup(open("adresy.osm"))
-    #imp = json.load(open("milawa.json"))
-    #ret = mergeInc(osm, imp)
+def testRemote():
     name = "krotoszyn"
     imp = iMPA(name)
     terc = imp.getConf()['terc']
@@ -227,7 +251,15 @@ def main():
     addr = getAddresses(terc)
     data = imp.fetchTiles()
 
-    ret = mergeInc(addr, data)
+    return (addr, data)
+
+
+def main():
+    (addr, data) = testLocal()
+    #(addr, data) = testRemote()
+
+    #ret = mergeInc(addr, data)
+    ret = mergeFull(addr, data)
 
     with open("result.osm", "w+") as f:
         f.write(ret)
