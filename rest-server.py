@@ -18,7 +18,7 @@ def differentialImport(name):
 
     (addr, data) = utils.parallel_execution(lambda: getAddresses(terc), imp.fetchTiles)
     
-    ret = mergeInc(addr.result(), data.result())
+    ret = mergeInc(addr, data)
     
     return make_response(ret, 200)
 

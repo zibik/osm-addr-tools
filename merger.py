@@ -156,12 +156,12 @@ def _processOne(osmdb, entry):
 
             # do not compare on street names - assume that OSM has better name
             if _valEq(
-                    c, 'addr:city', entry['addr:city']) and _valEq(
-                    c, 'addr:place', entry['addr:place']) and _valEq(
-                    c, 'addr:housenumber', entry['addr:housenumber']):
-                if not _valEq(c, 'addr:street', entry['addr:street']):
+                    c, 'addr:city', entry.get('addr:city')) and _valEq(
+                    c, 'addr:place', entry.get('addr:place')) and _valEq(
+                    c, 'addr:housenumber', entry.get('addr:housenumber')):
+                if not _valEq(c, 'addr:street', entry.get('addr:street')):
                     # take addr:street value from OSM instead of imported data
-                    entry['addr:street'] = getVal(c, 'addr:street')
+                    entry['addr:street'] = _getVal(c, 'addr:street')
                 else:
                     print("Update not based on address but on location")
                 return [_updateNode(c, entry)]
@@ -170,8 +170,8 @@ def _processOne(osmdb, entry):
                 print("Adding new node within building")
                 return [_createPoint(entry)]
     # no address existing, no candidates within buildings, check closest one
-    c = candidates[0]
-    dist = distance(tuple(map(float, (c['lat'], c['lon']))), entry_point)
+    #c = candidates[0]
+    #dist = distance(tuple(map(float, (c['lat'], c['lon']))), entry_point)
     candidates_same = list(filter(lambda x: _getVal(x, 'addr:housenumber') == entry['addr:housenumber'] and \
         distance(tuple(map(float, (x['lat'], x['lon']))), entry_point) < 2.0, candidates))
     if len(candidates_same) > 0:
@@ -248,8 +248,8 @@ def main():
     (addr, data) = testLocal()
     #(addr, data) = testRemote()
 
-    #ret = mergeInc(addr, data)
-    ret = mergeFull(addr, data)
+    ret = mergeInc(addr, data)
+    #ret = mergeFull(addr, data)
 
     with open("result.osm", "w+") as f:
         f.write(ret)
