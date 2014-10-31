@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 
 # these below server as documentation
-__query = """
+__query_terc = """
 <osm-script output="xml" timeout="600">
   <query type="area" into="boundryarea">
     <has-kv k="boundary" v="administrative"/>
@@ -43,18 +43,49 @@ __query = """
 
 # don't know why Overpass API converter leaves out geometry="bounds" (bb) after conversion
 # remember to add it (bb before qt) by hand 
-__overpass_ql = """[out:xml][timeout:600];area["boundary"="administrative"]["admin_level"="7"]["teryt:terc"~"%s"]["type"="boundary"]->.boundryarea;(node(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["building"];relation(area.boundryarea)["addr:housenumber"];relation(area.boundryarea)["building"];);out meta bb qt;>;out meta qt;"""
+__overpass_ql_terc = """[out:xml][timeout:600];area["boundary"="administrative"]["admin_level"="7"]["teryt:terc"~"%s"]["type"="boundary"]->.boundryarea;(node(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["building"];relation(area.boundryarea)["addr:housenumber"];relation(area.boundryarea)["building"];);out meta bb qt;>;out meta qt;"""
+
+def getAddresses(terc):
+    return query(__overpass_ql_terc % (terc,))
+
+
+__query_ql_tag = """
+[out:xml]
+[timeout:600]
+;
+area
+  ["boundary"="administrative"]
+  ["admin_level"="2"]
+  ["name"="Polska"]
+  ["type"="boundary"]
+->.boundryarea;
+(
+  node
+    (area.boundryarea)
+    %(tags)s;
+  way
+    (area.boundryarea)
+    %(tags)s;
+);
+out;
+"""
+
+def getNodesWaysWithTags(taglist):
+    tags = "\n\t".join(map(lambda x: '["' + x + '"]', taglist))
+    return query(__query_ql_tag % {'tags': tags})
+
+def getNodesWaysWithTag(tagname):
+    return getNodesWaysWithTags([tagname, ])
+
 
 
 __overpassurl = "http://overpass-api.de/api/interpreter"
-
-def getAddresses(terc):
-    url = __overpassurl + '?' + urlencode({'data': __overpass_ql % (terc,)})
+def query(qry):
+    url = __overpassurl + '?' + urlencode({'data': qry.replace('\t', '').replace('\n', '')})
     return urlopen(url).read().decode('utf-8')
 
-
 def main():
-    ret = getAddresses("280701")
+    ret = getAddresses("301204")
     with open("adresy.osm", "w+") as f:
         f.write(ret)
 
