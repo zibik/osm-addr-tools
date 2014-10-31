@@ -27,7 +27,7 @@ else:
 import json
 from bs4 import BeautifulSoup
 #from pyproj import Proj
-from mapping import mapstreet
+from mapping import mapstreet, mapcity
 
 
 # stałe
@@ -154,10 +154,10 @@ def analyzePoint(soup):
             # TODO: clean names via sym_ul and dictionary
             ret['addr:street'] = mapstreet(str_name.strip().replace('  ', ' '), str_id[:-1])
             ret['teryt:sym_ul'] = str_id[:-1]
+            ret['addr:city'] = mapcity(city_name.strip(), city_id[:-1])
         else:
-            ret['addr:place'] = city_name.strip()
+            ret['addr:place'] = mapcity(city_name.strip(), city_id[:-1])
         
-        ret['addr:city'] = city_name.strip()
         ret['teryt:simc'] = city_id[:-1]
         return ret
     except KeyError:
