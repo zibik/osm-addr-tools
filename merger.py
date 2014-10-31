@@ -6,22 +6,12 @@ from shapely.geometry import Point
 from punktyadresowe_import import iMPA
 from overpass import getAddresses
 
-# depends:
-# graphics/py-pyproj
-# python3-pyproj
-#
-# devel/py-rtree
-# libspatialindex-dev
+# depends FreeBSD
+# portmaster graphics/py-pyproj devel/py-rtree devel/py-shapely www/py-beautifulsoup devel/py-lxml
+
+# depeds Lubuntu:
+# apt-get install python3-pyproj libspatialindex-dev python3-shapely python3-bs4 python3-lxml 
 # easy_install3 Rtree
-#
-# devel/py-shapely
-# python3-shapely
-# 
-# www/py-beautifulsoup
-# python3-bs4
-#
-# devel/py-lxml
-# python3-lxml
 
 __geod = pyproj.Geod(ellps="WGS84")
 
