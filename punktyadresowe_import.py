@@ -151,7 +151,6 @@ def analyzePoint(soup):
             ret['addr:postcode'] = kv[str_normalize('Kod pocztowy')]
 
         if str_name.strip():
-            # TODO: clean names via sym_ul and dictionary
             ret['addr:street'] = mapstreet(str_name.strip().replace('  ', ' '), str_id[:-1])
             ret['teryt:sym_ul'] = str_id[:-1]
             ret['addr:city'] = mapcity(city_name.strip(), city_id[:-1])
