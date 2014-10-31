@@ -443,42 +443,22 @@ import pickle
 import time
 import tempfile
 import os
-__DB_LOCATION = os.path.join(tempfile.gettempdir(), 'teryt_symul.db')
+import overpass
 
-
-query = """
-<osm-script output="xml">
-  <query into="boundryarea" type="area">
-    <has-kv k="boundary" v="administrative"/>
-    <has-kv k="admin_level" v="2"/>
-    <has-kv k="name" v="Polska"/>
-    <has-kv k="type" v="boundary"/>
-  </query>
-  <union>
-    <query type="node">
-      <area-query from="boundryarea"/>
-      <has-kv k="teryt:sym_ul" modv="" v=""/>
-    </query>
-    <query type="way">
-      <area-query from="boundryarea"/>
-      <has-kv k="teryt:sym_ul" modv="" v=""/>
-    </query>
-  </union>
-  <print mode="tags"/>
-</osm-script>
-"""
 
 def getVal(node, tag):
     n = node.find('tag', k=tag)
     return n['v'] if n else None
 
-def fetchData():
-    overpass_url = 'http://overpass-api.de/api/interpreter?data=%5Bout%3Axml%5D%3Barea%5B%22boundary%22%3D%22administrative%22%5D%5B%22admin%5Flevel%22%3D%222%22%5D%5B%22name%22%3D%22Polska%22%5D%5B%22type%22%3D%22boundary%22%5D%2D%3E%2Eboundryarea%3B%28node%28area%2Eboundryarea%29%5B%22teryt%3Asym%5Ful%22%5D%3Bway%28area%2Eboundryarea%29%5B%22teryt%3Asym%5Ful%22%5D%3B%29%3Bout%3B'
-    soup = BeautifulSoup(urlopen(overpass_url))
+def fetchData(keyname, valuename, coexitingtags):
+    tags = [keyname, ]
+    if coexitingtags:
+        tags.extend(coexitingtags)
+    soup = BeautifulSoup(overpass.getNodesWaysWithTags(tags))
     ret = {}
     for tag in soup.find_all(['node', 'way']):
-        symul = getVal(tag, 'teryt:sym_ul')
-        street = getVal(tag, 'addr:street')
+        symul = getVal(tag, keyname)
+        street = getVal(tag, valuename)
         if street:
             try:
                 entry = ret[symul]
@@ -489,11 +469,13 @@ def fetchData():
                 entry[street] += 1
             except KeyError:
                 entry[street] = 1
+    soup.decompose()
+    soup = None # weired problem with memory managemetn
     return ret
 
-def getDict():
+def getDict(keyname, valuename, filename, coexitingtags=None):
     try:
-        with open(__DB_LOCATION, "rb") as f:
+        with open(filename, "rb") as f:
             data = pickle.load(f)
     except IOError:
         #import traceback
@@ -503,18 +485,29 @@ def getDict():
         }
     if data['time'] < time.time() - 7*24*60*60:
         # time for update
-        print("Updating teryt:sym_ul data from OSM, it may take a while")
-        new = fetchData()
+        print("Updating %s data from OSM, it may take a while" % (keyname,))
+        new = fetchData(keyname, valuename, coexitingtags)
         new = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, new.items()))
         data['dct'] = new
         data['time'] = time.time()
         try:
-            with open(__DB_LOCATION, "w+b") as f:
+            with open(filename, "w+b") as f:
                 pickle.dump(data, f)
         except: pass
     return data['dct']
 
-__mapping_symul = getDict()
+
+# TODO - do better :-)
+from concurrent.futures import ThreadPoolExecutor
+__executor = ThreadPoolExecutor(max_workers=2)
+
+__DB_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'teryt_symul.db')
+__mapping_symul = __executor.submit(lambda: getDict('teryt:sym_ul', 'addr:street', __DB_TERYT_SYMUL))
+__DB_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'teryt_simc.db')
+__mapping_simc = __executor.submit(lambda: getDict('teryt:simc', 'name', __DB_TERYT_SIMC, ['place']))
+__mapping_symul = __mapping_symul.result()
+__mapping_simc = __mapping_simc.result()
+
 __printed = set()
 
 def mapstreet(strname, symul):
@@ -526,13 +519,21 @@ def mapstreet(strname, symul):
         try:
             ret = __mapping_symul[symul]
             if ret != strname and ret not in __printed:
-                print("mapping %s -> %s" % (strname, ret))
+                print("mapping street %s -> %s" % (strname, ret))
                 __printed.add(ret)
             return ret
         except KeyError:
             return strname
 
-# TODO: add addr:city mapping by teryt:simc
+def mapcity(cityname, simc):
+    try:
+        ret = __mapping_simc[simc]
+        if ret != cityname and ret not in __printed:
+            print("mapping city %s -> %s" % (cityname, ret))
+            __printed.add(ret)
+        return ret
+    except KeyError:
+        return cityname
 
 def main():
     dct = fetchData()
