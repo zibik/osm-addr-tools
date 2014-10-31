@@ -497,16 +497,14 @@ def getDict(keyname, valuename, filename, coexitingtags=None):
     return data['dct']
 
 
-# TODO - do better :-)
-from concurrent.futures import ThreadPoolExecutor
-__executor = ThreadPoolExecutor(max_workers=2)
+import utils
 
 __DB_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'teryt_symul.db')
-__mapping_symul = __executor.submit(lambda: getDict('teryt:sym_ul', 'addr:street', __DB_TERYT_SYMUL))
 __DB_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'teryt_simc.db')
-__mapping_simc = __executor.submit(lambda: getDict('teryt:simc', 'name', __DB_TERYT_SIMC, ['place']))
-__mapping_symul = __mapping_symul.result()
-__mapping_simc = __mapping_simc.result()
+__mapping_symul, __mapping_simc = utils.parallel_execution(
+        lambda: getDict('teryt:sym_ul', 'addr:street', __DB_TERYT_SYMUL),
+        lambda: getDict('teryt:simc', 'name', __DB_TERYT_SIMC, ['place']),
+    )
 
 __printed = set()
 

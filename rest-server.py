@@ -2,7 +2,7 @@ from flask import Flask, make_response as _make_response
 from merger import mergeInc, mergeFull
 from overpass import getAddresses
 from punktyadresowe_import import iMPA
-from concurrent.futures import ThreadPoolExecutor
+import utils
 
 app = Flask(__name__)
 
@@ -16,10 +16,7 @@ def differentialImport(name):
     imp = iMPA(name)
     terc = imp.getConf()['terc']
 
-    executor = ThreadPoolExecutor(max_workers=4)
-
-    addr = executor.submit(lambda: getAddresses(terc))
-    data = executor.submit(imp.fetchTiles)
+    (addr, data) = utils.parallel_execution(lambda: getAddresses(terc), imp.fetchTiles)
     
     ret = mergeInc(addr.result(), data.result())
     
@@ -30,8 +27,7 @@ def fullImport(name):
     imp = iMPA(name)
     terc = imp.getConf()['terc']
 
-    addr = getAddresses(terc) 
-    data= imp.fetchTiles()
+    (addr, data) = utils.parallel_execution(lambda: getAddresses(terc), imp.fetchTiles)
     
     ret = mergeFull(addr, data)
     
