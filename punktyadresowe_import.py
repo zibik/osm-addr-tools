@@ -106,7 +106,7 @@ def fetchPoint(wms_addr, w, s, e, n, pointx, pointy):
 def markSuspiciousAddr(dct):
     dups = {}
     for addr in dct.values():
-        v = bool(addr.get('street'))+1
+        v = bool(addr.get('addr:street'))+1
         try:
             dups[addr['teryt:simc']] |= v
         except KeyError:
@@ -114,10 +114,8 @@ def markSuspiciousAddr(dct):
     
     dups = set(k for k,v in filter(lambda x: x[1] == 3, dups.items()))
 
-    print("Dups identified for: %s" % (dups,))
     for i in filter(lambda x: x['teryt:simc'] in dups, dct.values()):
-        print("Marking dups")
-        i['fixme'] = 'Address within city/place with both streets and without'
+        i['fixme'] = 'Mixed addressing scheme in city - with streets and without'
 
     return dct
 
