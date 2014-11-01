@@ -26,7 +26,6 @@ else:
     str_normalize = lambda x: x
 import json
 from bs4 import BeautifulSoup
-#from pyproj import Proj
 from mapping import mapstreet, mapcity
 
 
@@ -67,31 +66,11 @@ def getInit(gmina_url):
                 )
         )[0]['address']
     
-    #getBBoxCap(address)
     return {
         'bbox': bbox,
         'wms_addr': address,
         'terc': init_data['teryt'],
     }
-
-# zwraca bbox w EPSG:2180
-def getBBox(wms_addr):
-    params = {
-        'VERSION': '1.1.1',
-        'SERVICE': 'WMS',
-        'REQUEST': 'GetCapabilities',
-        'FORMAT': 'application/vnd.ogc.wms_xml',
-    }
-    url = "%s&%s" % (wms_addr, urlencode(params),)
-    data = urlopen(url).read()
-    soup = BeautifulSoup(data)
-    bbox = soup.wmt_ms_capabilities.find(name='boundingbox', srs='EPSG:2180')
-
-    return {
-        'minx': bbox['minx'], 'miny': bbox['miny'], 
-        'maxx': bbox['maxx'], 'maxy': bbox['maxy']
-    }
-
 
 def fetchTiles(wms_addr, bbox):
     return analyzePoints(
@@ -124,13 +103,32 @@ def fetchPoint(wms_addr, w, s, e, n, pointx, pointy):
     data = urlopen(url).read()
     return data
 
+def markSuspiciousAddr(dct):
+    dups = {}
+    for addr in dct.values():
+        v = bool(addr.get('street'))+1
+        try:
+            dups[addr['teryt:simc']] |= v
+        except KeyError:
+            dups[addr['teryt:simc']] = v
+    
+    dups = set(k for k,v in filter(lambda x: x[1] == 3, dups.items()))
+
+    print("Dups identified for: %s" % (dups,))
+    for i in filter(lambda x: x['teryt:simc'] in dups, dct.values()):
+        print("Marking dups")
+        i['fixme'] = 'Address within city/place with both streets and without'
+
+    return dct
+
 def analyzePoints(html):
     soup = BeautifulSoup(html)
     ret = {}
     for i in soup.find_all('table'):
         point = analyzePoint(i)
         ret[tuple(point['location'].values())] = point
-    return ret
+    
+    return markSuspiciousAddr(ret)
 
 def analyzePoint(soup):
     kv = dict(zip(
@@ -168,16 +166,16 @@ def analyzePoint(soup):
         print(kv)
         raise
     
-def convertToOSM(dct):
+def convertToOSM(lst):
     ret = """<?xml version='1.0' encoding='UTF-8'?>
 <osm version='0.6' upload='false' generator='punktyadresowe_import.php'>
 """
-    for (node_id, val) in enumerate(dct.values()):
+    for (node_id, val) in enumerate(lst):
         ret += '<node id="-%s" action="modify" visible="true" lat="%s" lon="%s">\n' % (node_id+1, 
                                                                         val['location']['lat'], 
                                                                         val['location']['lon'])
         for i in ('addr:housenumber', 'source:addr', 'addr:postcode', 'addr:street', 'addr:city',
-                    'teryt:sym_ul', 'addr:place', 'teryt:simc'):
+                    'teryt:sym_ul', 'addr:place', 'teryt:simc', 'fixme'):
             tagval = val.get(i)
             if tagval:
                 ret += '<tag k="%s" v="%s" />\n' % (i, tagval)
@@ -209,14 +207,14 @@ Creates file [gmina].osm with result
 """)
         sys.exit(1)
     gmina = sys.argv[1]
-    conf = getInit('http://%s.e-mapa.net' % (gmina,))
-    ret = fetchTiles(conf['wms_addr'], conf['bbox'])
+    impa = iMPA(gmina)
+    ret = impa.fetchTiles()
     osm = convertToOSM(ret)
     with open(gmina+'.osm', "w+b") as f:
         f.write(osm.encode('utf-8'))
 
     with open(gmina+'.json', "w+") as f:
-        json.dump(list(ret.values()), f)
+        json.dump(list(ret), f)
 
 if __name__ == '__main__':
     main()
