@@ -103,19 +103,25 @@ def fetchPoint(wms_addr, w, s, e, n, pointx, pointy):
     data = urlopen(url).read()
     return data
 
+def _filterOnes(lst):
+    return list(filter(lambda x: x > 0, lst))
+
 def markSuspiciousAddr(dct):
     dups = {}
     for addr in dct.values():
-        v = bool(addr.get('addr:street'))+1
+        v = bool(addr.get('addr:street'))
         try:
-            dups[addr['teryt:simc']] |= v
+            lst = dups[addr['teryt:simc']]
         except KeyError:
-            dups[addr['teryt:simc']] = v
+            lst =[]
+            dups[addr['teryt:simc']] = lst
+        lst.append(v)
     
-    dups = set(k for k,v in filter(lambda x: x[1] == 3, dups.items()))
+    dups = dict((k, len(_filterOnes(v))/len(v)) for k, v in dups.items())
+    dups = dict((k,v) for k, v in filter(lambda x: 0 < x[1] and x[1] < 1, dups.items()))
 
-    for i in filter(lambda x: x['teryt:simc'] in dups, dct.values()):
-        i['fixme'] = 'Mixed addressing scheme in city - with streets and without'
+    for i in filter(lambda x: x['teryt:simc'] in dups.keys(), dct.values()):
+        i['fixme'] = 'Mixed addressing scheme in city - with streets and without. %.1f%% with streets.' % (dups[i['teryt:simc']]*100,)
 
     return dct
 
