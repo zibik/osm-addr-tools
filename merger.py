@@ -200,6 +200,20 @@ def _processOne(osmdb, entry):
         return []
     return [_createPoint(entry)]
 
+def mergeAddrWithBuilding(soup):
+    if soup.name == 'node':
+        entry_point = tuple(map(float, (soup['lat'], soup['lon'])))
+        candidates = list(osmdb.nearest(entry_point, num_results=10))
+        candidates_within = list(filter(lambda x: x.name in ('way', 'relation') and Point(entry_point).within(osmdb.getShape(x)), candidates))
+        if candidates_within:
+            c = candidates_within[0]
+            if not c('tag', k='addr:housenumber'):
+                # only merge with buildings without address
+                for tag in soup.find_all('tag'):
+                    c.append(tag)
+                # mark for deletion
+                soup['action'] = 'delete'
+
 def getEmptyOsm(meta):
     ret = BeautifulSoup("", "xml")
     #ret = BeautifulSoup()
@@ -214,6 +228,7 @@ def getEmptyOsm(meta):
 def mergeInc(asis, impdata):
     asis = BeautifulSoup(asis)
     osmdb = OsmDb(asis)
+    # TODO - refactor and add mergeAddrWithBuilding
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
     #ret = asis
@@ -235,6 +250,7 @@ def mergeInc(asis, impdata):
 def mergeFull(asis, impdata):
     asis = BeautifulSoup(asis, "xml")
     osmdb = OsmDb(asis)
+    # TODO - refactor and add mergeAddrWithBuilding
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
     ret = asis
