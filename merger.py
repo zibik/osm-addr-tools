@@ -60,7 +60,6 @@ def _getNodeId():
 def _createPoint(entry):
     ret = BeautifulSoup()
     node = ret.new_tag(name='node', id=_getNodeId(), action='modify', lat=entry['location']['lat'], lon=entry['location']['lon'])
-    print("Adding point %s" % (node['id'],))
     ret.append(node)
     def addTag(key, val):
         if val:
@@ -102,10 +101,10 @@ def _updateNode(node, entry):
             ret |= bool(rmv.extract())
             assert ret == True
     ret |= _updateTag(node, 'addr:housenumber', entry['addr:housenumber'])
-    ret |= _updateTag(node, 'source:addr', entry['source:addr'])
     #ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
     #ret |= _updateTag(node, 'teryt:simc', entry['teryt:simc'])
     if ret:
+        ret |= _updateTag(node, 'source:addr', entry['source:addr'])
         node['action'] = 'modify'
     return node
 
@@ -167,13 +166,13 @@ def _processOne(osmdb, entry):
                 return [_updateNode(c, entry)]
             else:
                 # address within a building that has different address, add a point, maybe building needs spliting
-                print("Adding new node within building")
+                print("Adding new node within building with address")
                 return [_createPoint(entry)]
     # no address existing, no candidates within buildings, check closest one
     #c = candidates[0]
     #dist = distance(tuple(map(float, (c['lat'], c['lon']))), entry_point)
     candidates_same = list(filter(lambda x: _getVal(x, 'addr:housenumber') == entry['addr:housenumber'] and \
-        distance(tuple(map(float, (x['lat'], x['lon']))), entry_point) < 2.0, candidates))
+        distance(osmdb.getCenter(x), entry_point) < 2.0, candidates))
     if len(candidates_same) > 0:
         # same location, both are an address, and have same housenumber, can't be coincidence,
         # probably mapper changed something
@@ -207,10 +206,8 @@ def mergeInc(asis, impdata):
     for i in filter(lambda x: x.get('action') == 'modify', new_nodes):
         ret.osm.append(i)
     nd_refs = set(i['ref'] for i in ret.find_all('nd'))
-    print("found %s nd_refs" % (len(nd_refs),))
     nodes = set(i['id'] for i in ret.find_all('node'))
     nd_refs = nd_refs - nodes
-    print("after removing existing nodes: %s" % (len(nd_refs),))
     for i in asis.find_all(lambda x: x.name == 'node' and x['id'] in nd_refs):
         ret.osm.append(i)
     return ret.prettify()
@@ -234,7 +231,7 @@ def testLocal():
     return (osm, imp)
 
 def testRemote():
-    name = "krotoszyn"
+    name = "choszczno"
     imp = iMPA(name)
     terc = imp.getConf()['terc']
     
@@ -245,8 +242,8 @@ def testRemote():
 
 
 def main():
-    (addr, data) = testLocal()
-    #(addr, data) = testRemote()
+    #(addr, data) = testLocal()
+    (addr, data) = testRemote()
 
     ret = mergeInc(addr, data)
     #ret = mergeFull(addr, data)
