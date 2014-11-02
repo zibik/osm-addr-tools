@@ -118,7 +118,7 @@ def getcenter(node):
                  (sum(map(float, (b['minlon'], b['maxlon']))))/2)
    
 def entrystr(entry):
-    return "%s, %s, %s" % (entry['addr:city'], entry['addr:street'] if entry['addr:street'] else entry['addr:place'], entry['addr:housenumber'])
+    return "%s, %s, %s" % (entry.get('addr:city'), entry.get('addr:street') if entry.get('addr:street') else entry.get('addr:place'), entry.get('addr:housenumber'))
 
 def _processOne(osmdb, entry):
     """process one entry (of type dict) and work with OsmDb instance to find addresses to merge
