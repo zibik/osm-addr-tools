@@ -185,6 +185,17 @@ def _processOne(osmdb, entry):
     if len(candidates_same) > 0:
         # same location, both are an address, and have same housenumber, can't be coincidence,
         # probably mapper changed something
+        for c in candidates_same:
+            ret = []
+            if c.get('addr:city') == c.get('addr:place') and not(c.get('addr:street')) and _valEq(
+                c, 'addr:place', entry.get('place')) and _valEq(
+                c, 'addr:housenumber', entry.get('addr:housenumber')) and _valEq(
+                c, 'addr:street', entry.get('addr:street')):
+                # we have addr:city, addr:place and no add:street in OSM
+                # addr:city is to be removed from OSM, update the point as
+                ret.append(_updateNode(c, entry))
+            if ret:
+                return ret
         print("Found probably same address node at (%s, %s). Skipping. Address is: %s" % (entry['location']['lon'], entry['location']['lat'], entry))
         return []
     return [_createPoint(entry)]
