@@ -86,6 +86,10 @@ class OsmDb(object):
 
         raise TypeError("%s not supported" % (soup.name,))
 
+    def getCenter(self, soup):
+        pos = self.__getPos(soup)
+        return (pos[0] + pos[2])/2, (pos[1] + pos[3])/2
+
     def nearest(self, point, num_results=1):
 
         return map(self.__index_entries.get, 
