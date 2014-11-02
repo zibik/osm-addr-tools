@@ -80,6 +80,8 @@ def getNodesWaysWithTag(tagname):
 
 
 __overpassurl = "http://overpass-api.de/api/interpreter"
+__overpassurl = "http://overpass.osm.rambler.ru/cgi/interpreter"
+
 def query(qry):
     url = __overpassurl + '?' + urlencode({'data': qry.replace('\t', '').replace('\n', '')})
     return urlopen(url).read().decode('utf-8')
