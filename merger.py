@@ -149,6 +149,7 @@ def _processOne(osmdb, entry):
     if candidates_within:
         c = candidates_within[0]
         if not c('tag', k='addr:housenumber'):
+            # no address on way/relation
             return [_updateNode(c, entry)]
         else:
             # WARNING - candidate has an address
@@ -165,6 +166,14 @@ def _processOne(osmdb, entry):
                     print("Update not based on address but on location")
                 return [_updateNode(c, entry)]
             else:
+                if c.get('addr:city') == c.get('addr:place') and not(c.get('addr:street')) and _valEq(
+                    c, 'addr:place', entry.get('place')) and _valEq(
+                    c, 'addr:housenumber', entry.get('addr:housenumber')) and _valEq(
+                    c, 'addr:street', entry.get('addr:street')):
+                    # we have addr:city, addr:place and no add:street in OSM
+                    # addr:city is to be removed from OSM, update the point as
+                    return [_updateNode(c, entry)]
+
                 # address within a building that has different address, add a point, maybe building needs spliting
                 print("Adding new node within building with address")
                 return [_createPoint(entry)]
