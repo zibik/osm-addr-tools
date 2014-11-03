@@ -146,7 +146,7 @@ def analyzePoint(soup):
 
         ret = {
             'location': {'lat': lat, 'lon': lon},
-            'addr:housenumber': kv[str_normalize('Numer')].lower(),
+            'addr:housenumber': kv[str_normalize('Numer')],
             'source:addr': kv[str_normalize('Źródło danych')],
         }
         if kv[str_normalize('Kod pocztowy')].strip():
