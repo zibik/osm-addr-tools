@@ -12,6 +12,8 @@
 #       apt-get install python-beautifulsoup4
 #       portmaster www/py-beautifulsoup
 #
+# TODO:
+# - extract validations (mixed addressing scheme) to external module
 
 import sys
 if sys.version_info.major == 2:
@@ -120,7 +122,13 @@ def markSuspiciousAddr(dct):
     dups = dict((k, len(_filterOnes(v))/len(v)) for k, v in dups.items())
     dups = dict((k,v) for k, v in filter(lambda x: 0 < x[1] and x[1] < 1, dups.items()))
 
-    for i in filter(lambda x: x['teryt:simc'] in dups.keys(), dct.values()):
+    for i in filter(
+            lambda x: bool(x.get('addr:place')),
+            filter(
+                lambda x: x['teryt:simc'] in dups.keys(), 
+                dct.values()
+                )
+            ):
         i['fixme'] = 'Mixed addressing scheme in city - with streets and without. %.1f%% with streets.' % (dups[i['teryt:simc']]*100,)
 
     return dct
