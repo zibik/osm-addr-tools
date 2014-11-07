@@ -13,6 +13,12 @@ from overpass import getAddresses
 # apt-get install python3-pyproj libspatialindex-dev python3-shapely python3-bs4 python3-lxml 
 # easy_install3 Rtree
 
+# TODO:
+# - linia komend, tak by można było odpalić z automatycznym ładowaniem danych, albo z lokalnych plikow
+# - dodać logging
+# - dodać zapisywanie wyniku z logging do osm.meta.notes
+# 
+
 __geod = pyproj.Geod(ellps="WGS84")
 
 def distance(a, b):
