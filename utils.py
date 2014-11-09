@@ -1,5 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
-__executor = ThreadPoolExecutor(max_workers=4) # pick sane default
+import multiprocessing
+
+__executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) # pick sane default - number of CPUs
 
 def parallel_execution(*args):
     """run in parallel all functions passed as args"""
