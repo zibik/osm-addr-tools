@@ -1,5 +1,6 @@
 from urllib.request import urlopen
 from urllib.parse import urlencode
+import argparse
 
 
 # these below server as documentation
@@ -89,9 +90,12 @@ def query(qry):
     return urlopen(url).read().decode('utf-8')
 
 def main():
-    ret = getAddresses("301204")
-    with open("adresy.osm", "w+") as f:
-        f.write(ret)
+    parser = argparse.ArgumentParser(description='Fetches addresses for given teryt:terc from OSM')
+    parser.add_argument('--terc', help='teryt:terc code for area', required=True)
+    parser.add_argument('--output', default='addresses.osm', help='output file (addresses.osm)', type=argparse.FileType("w+", encoding='UTF-8'))
+    args = parser.parse_args()
+    ret = getAddresses(args.terc)
+    args.output.write(ret)
 
 if __name__ == '__main__':
     main()
