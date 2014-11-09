@@ -1,6 +1,7 @@
 import argparse
 import logging
 import io
+import sys
 from osmdb import OsmDb
 import json
 import pyproj
@@ -19,10 +20,6 @@ __log = logging.getLogger(__name__)
 # apt-get install python3-pyproj libspatialindex-dev python3-shapely python3-bs4 python3-lxml 
 # easy_install3 Rtree
 
-# TODO:
-# - dodać logging
-# - dodać zapisywanie wyniku z logging do osm.meta.notes
-# 
 
 __geod = pyproj.Geod(ellps="WGS84")
 
@@ -188,7 +185,7 @@ def _processOne(osmdb, entry):
                     return [_updateNode(c, entry)]
 
                 # address within a building that has different address, add a point, maybe building needs spliting
-                log.debug("Adding new node within building with address")
+                __log.debug("Adding new node within building with address")
                 return [_createPoint(entry)]
     # no address existing, no candidates within buildings, check closest one
     #c = candidates[0]
@@ -209,7 +206,7 @@ def _processOne(osmdb, entry):
                 ret.append(_updateNode(c, entry))
             if ret:
                 return ret
-        log.info("Found probably same address node at (%s, %s). Skipping. Address is: %s", entry['location']['lon'], entry['location']['lat'], entry)
+        __log.info("Found probably same address node at (%s, %s). Skipping. Address is: %s", entry['location']['lon'], entry['location']['lat'], entry)
         return []
     return [_createPoint(entry)]
 
@@ -286,7 +283,7 @@ def main():
     address_group.add_argument('--terc', help='teryt:terc code, for which to download addresses from OSM using Overpass API')
     parser.add_argument('--output', type=argparse.FileType('w+', encoding='UTF-8'), help='output file with merged data (default: result.osm)', default='result.osm')
     parser.add_argument('--full', help='Use to output all address data for region, not only modified address data as per default', action='store_const', const=True, dest='full_mode', default=False)
-    parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 30', dest='log_level', default=30, type=int)
+    parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
 
     args = parser.parse_args()
     logIO = io.StringIO()
@@ -311,10 +308,10 @@ def main():
     (addr, data) = parallel_execution(addrFunc, dataFunc)
 
     if len(data) < 1:
-        log.warning("Warning - import data is empty. Check your import")
+        __log.warning("Warning - import data is empty. Check your import")
 
     if 'node' not in addr:
-        log.warning("Warning - address data is empty. Check your file/terc code")
+        __log.warning("Warning - address data is empty. Check your file/terc code")
 
     if args.full_mode:
         ret = mergeFull(addr, data, logIO)
