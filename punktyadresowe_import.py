@@ -26,20 +26,25 @@ else:
     import urllib.request as urequest
     from urllib.request import urlopen
     str_normalize = lambda x: x
+import logging
+import argparse
 import json
 from bs4 import BeautifulSoup
 from mapping import mapstreet, mapcity
+from utils import parallel_execution
 
 
 # stałe
 #_EPSG2180 = Proj(init='epsg:2180')
 
+__log = logging.getLogger(__name__)
 # User-Agent dla requestów
 __opener = urequest.build_opener()
 __headers = { 
     'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2',
 }
 __opener.addheaders = __headers.items()
+
 
 # setup
 urequest.install_opener(__opener)
@@ -48,7 +53,7 @@ urequest.install_opener(__opener)
 
 def getInit(gmina_url):
     url = gmina_url + '/application/system/init.php'
-    print(url)
+    __log.info(url)
     data = urlopen(url).read().decode('utf-8')
     init_data = json.loads(data)
     
@@ -101,7 +106,7 @@ def fetchPoint(wms_addr, w, s, e, n, pointx, pointy):
     }
 
     url = "%s&%s" % (wms_addr, urlencode(params))
-    print(url)
+    __log.info(url)
     data = urlopen(url).read()
     return data
 
@@ -170,12 +175,14 @@ def analyzePoint(soup):
         ret['teryt:simc'] = city_id[:-1]
         return ret
     except KeyError:
-        print(soup)
-        print(kv)
+        __log.error(soup)
+        __log.error(kv)
+        __log.error("Exception during point analysis", exc_info=True)
         raise
     except ValueError:
-        print(soup)
-        print(kv)
+        __log.error(soup)
+        __log.error(kv)
+        __log.error("Exception during point analysis", exc_info=True)
         raise
     
 def convertToOSM(lst):
@@ -206,27 +213,25 @@ class iMPA(object):
         return list(fetchTiles(self.conf['wms_addr'], self.conf['bbox']).values())
 
 def main():
-    if len(sys.argv) != 2:
-        print("""punktyadresowe_import.py CC-BY-SA 3.0@WiktorN
+    parser = argparse.ArgumentParser(description="Downloads data from iMPA and saves in OSM or JSON format. CC-BY-SA 3.0 @ WiktorN. Filename is <gmina>.osm or <gmina>.json")
+    parser.add_argument('--output-format', choices=['json', 'osm'],  help='output file format - "json" or "osm", default: osm', default="osm", dest='output_format')
+    parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
+    parser.add_argument('gmina', nargs='+', help='list of iMPA services to download, it will use at most 4 concurrent threads to download and analyse')
+    args = parser.parse_args()
 
-Usage:
-    punktyadresowe_importy.py [gmina]
+    logging.basicConfig(level=args.log_level)
 
-Example:
-    punktyadresowe_import.py milawa
+    rets = parallel_execution(*map(lambda x: lambda: iMPA(x).fetchTiles(), args.gmina))
+    if args.output_format == 'json':
+        write_conv_func = lambda x: json.dumps(list(x))
+        file_suffix = '.json'
+    else:
+        write_conv_func = convertToOSM
+        file_suffix = '.osm'
 
-Creates file [gmina].osm with result
-""")
-        sys.exit(1)
-    gmina = sys.argv[1]
-    impa = iMPA(gmina)
-    ret = impa.fetchTiles()
-    osm = convertToOSM(ret)
-    with open(gmina+'.osm', "w+b") as f:
-        f.write(osm.encode('utf-8'))
-
-    with open(gmina+'.json', "w+") as f:
-        json.dump(list(ret), f)
+    for (ret, gmina) in zip(rets, args.gmina):
+        with open(gmina+file_suffix, "w+", encoding='utf-8') as f:
+            f.write(write_conv_func(ret))
 
 if __name__ == '__main__':
     main()

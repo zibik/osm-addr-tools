@@ -1,3 +1,6 @@
+import argparse
+import logging
+import io
 from osmdb import OsmDb
 import json
 import pyproj
@@ -6,7 +9,8 @@ from shapely.geometry import Point
 from punktyadresowe_import import iMPA
 from overpass import getAddresses
 from utils import parallel_execution
-import argparse
+
+__log = logging.getLogger(__name__)
 
 # depends FreeBSD
 # portmaster graphics/py-pyproj devel/py-rtree devel/py-shapely www/py-beautifulsoup devel/py-lxml
@@ -141,8 +145,10 @@ def _processOne(osmdb, entry):
 
         if len(existing) > 1:
             # mark duplicates
-            print("More than one address node for %s. Marking duplicates. Distances: %s" % (entrystr(entry), 
-                                                                                            ", ".join(str(x[0]) for x in existing)))
+            __log.warning("More than one address node for %s. Marking duplicates. Distances: %s", 
+                            entrystr(entry), 
+                            ", ".join(str(x[0]) for x in existing)
+                         )
             for (n, (dist, node)) in enumerate(existing):
                 _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
                 node['action'] = 'modify' # keep all duplicates in file
@@ -170,7 +176,7 @@ def _processOne(osmdb, entry):
                     # take addr:street value from OSM instead of imported data
                     entry['addr:street'] = _getVal(c, 'addr:street')
                 else:
-                    print("Update not based on address but on location")
+                    __log.warning("Update not based on address but on location, but have the same address")
                 return [_updateNode(c, entry)]
             else:
                 if c.get('addr:city') == c.get('addr:place') and not(c.get('addr:street')) and _valEq(
@@ -182,7 +188,7 @@ def _processOne(osmdb, entry):
                     return [_updateNode(c, entry)]
 
                 # address within a building that has different address, add a point, maybe building needs spliting
-                print("Adding new node within building with address")
+                log.debug("Adding new node within building with address")
                 return [_createPoint(entry)]
     # no address existing, no candidates within buildings, check closest one
     #c = candidates[0]
@@ -203,7 +209,7 @@ def _processOne(osmdb, entry):
                 ret.append(_updateNode(c, entry))
             if ret:
                 return ret
-        print("Found probably same address node at (%s, %s). Skipping. Address is: %s" % (entry['location']['lon'], entry['location']['lat'], entry))
+        log.info("Found probably same address node at (%s, %s). Skipping. Address is: %s", entry['location']['lon'], entry['location']['lat'], entry)
         return []
     return [_createPoint(entry)]
 
@@ -232,17 +238,13 @@ def getEmptyOsm(meta):
     ret.osm.append(meta)
     return ret
 
-def mergeInc(asis, impdata):
+def mergeInc(asis, impdata, logIO):
     asis = BeautifulSoup(asis)
     osmdb = OsmDb(asis)
     # TODO - refactor and add mergeAddrWithBuilding
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
-    #ret = asis
-    #for i in filter(lambda x: float(x['id']) < 0, new_nodes):
-    #    asis.osm.append(i)
     ret = getEmptyOsm(asis.meta)
-    #print(",".join(map(lambda x: x['id'], filter(lambda x: x.name == 'way', new_nodes))))
 
     # add all modified nodes, way and relations
     for i in filter(lambda x: x.get('action') == 'modify', new_nodes):
@@ -252,9 +254,11 @@ def mergeInc(asis, impdata):
     nd_refs = nd_refs - nodes
     for i in asis.find_all(lambda x: x.name == 'node' and x['id'] in nd_refs):
         ret.osm.append(i)
+    # add log entries as note
+    ret.osm.note.string = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.\n" + logIO.getvalue()
     return ret.prettify()
 
-def mergeFull(asis, impdata):
+def mergeFull(asis, impdata, logIO):
     asis = BeautifulSoup(asis, "xml")
     osmdb = OsmDb(asis)
     # TODO - refactor and add mergeAddrWithBuilding
@@ -265,6 +269,7 @@ def mergeFull(asis, impdata):
         _updateTag(i, 'import:action', 'modify')
     for i in filter(lambda x: float(x['id']) < 0, new_nodes):
         asis.osm.append(i)
+    asis.osm.note.string = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.\n" + logIO.getvalue()
     return asis.prettify()
         
 def main():
@@ -281,8 +286,12 @@ def main():
     address_group.add_argument('--terc', help='teryt:terc code, for which to download addresses from OSM using Overpass API')
     parser.add_argument('--output', type=argparse.FileType('w+', encoding='UTF-8'), help='output file with merged data (default: result.osm)', default='result.osm')
     parser.add_argument('--full', help='Use to output all address data for region, not only modified address data as per default', action='store_const', const=True, dest='full_mode', default=False)
+    parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 30', dest='log_level', default=30, type=int)
 
     args = parser.parse_args()
+    logIO = io.StringIO()
+    logging.basicConfig(level=args.log_level, handlers=[logging.StreamHandler(sys.stderr), logging.StreamHandler(logIO)])
+
     if args.impa:
         imp = iMPA(args.impa)
         terc = imp.getConf()['terc']
@@ -302,15 +311,15 @@ def main():
     (addr, data) = parallel_execution(addrFunc, dataFunc)
 
     if len(data) < 1:
-        print("Warning - import data is empty. Check your import")
+        log.warning("Warning - import data is empty. Check your import")
 
     if 'node' not in addr:
-        print("Warning - address data is empty. Check your file/terc code")
+        log.warning("Warning - address data is empty. Check your file/terc code")
 
     if args.full_mode:
-        ret = mergeFull(addr, data)
+        ret = mergeFull(addr, data, logIO)
     else:
-        ret = mergeInc(addr, data)
+        ret = mergeInc(addr, data, logIO)
 
     args.output.write(ret)
 

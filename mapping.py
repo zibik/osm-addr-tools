@@ -444,6 +444,9 @@ import time
 import tempfile
 import os
 import overpass
+import logging
+
+__log = logging.getLogger(__name__)
 
 
 def getVal(node, tag):
@@ -478,14 +481,13 @@ def getDict(keyname, valuename, filename, coexitingtags=None):
         with open(filename, "rb") as f:
             data = pickle.load(f)
     except IOError:
-        #import traceback
-        #traceback.print_exc()
+        __log.debug("Can't read a file: %s, starting with a new one", filename, exc_info=True)
         data = {
             'time': 0
         }
     if data['time'] < time.time() - 7*24*60*60:
         # time for update
-        print("Updating %s data from OSM, it may take a while" % (keyname,))
+        __log.info("Updating %s data from OSM, it may take a while", keyname)
         new = fetchData(keyname, valuename, coexitingtags)
         new = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, new.items()))
         data['dct'] = new
@@ -517,7 +519,7 @@ def mapstreet(strname, symul):
         try:
             ret = __mapping_symul[symul]
             if ret != strname and ret not in __printed:
-                print("mapping street %s -> %s" % (strname, ret))
+                __log.info("mapping street %s -> %s" % (strname, ret))
                 __printed.add(ret)
             return ret
         except KeyError:
@@ -527,7 +529,7 @@ def mapcity(cityname, simc):
     try:
         ret = __mapping_simc[simc]
         if ret != cityname and ret not in __printed:
-            print("mapping city %s -> %s" % (cityname, ret))
+            __log.info("mapping city %s -> %s" % (cityname, ret))
             __printed.add(ret)
         return ret
     except KeyError:
