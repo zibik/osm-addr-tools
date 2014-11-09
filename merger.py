@@ -267,26 +267,7 @@ def mergeFull(asis, impdata):
         asis.osm.append(i)
     return asis.prettify()
         
-    
-def testLocal():
-    osm = open("adresy.osm").read()
-    imp = json.load(open("krotoszyn.json"))
-    return (osm, imp)
-
-def testRemote():
-    name = "choszczno"
-    imp = iMPA(name)
-    terc = imp.getConf()['terc']
-    
-    addr = getAddresses(terc)
-    data = imp.fetchTiles()
-
-    return (addr, data)
-
-
 def main():
-    # - linia komend, tak by można było odpalić z automatycznym ładowaniem danych, albo z lokalnych plikow
-    #(addr, data) = testLocal()
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, 
     description="""Merge data from WMS with OSM data. Generate output OSM file for JOSM. You need to provide one of:
     1. --impa with service name
