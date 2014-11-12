@@ -216,10 +216,16 @@ def main():
     parser = argparse.ArgumentParser(description="Downloads data from iMPA and saves in OSM or JSON format. CC-BY-SA 3.0 @ WiktorN. Filename is <gmina>.osm or <gmina>.json")
     parser.add_argument('--output-format', choices=['json', 'osm'],  help='output file format - "json" or "osm", default: osm', default="osm", dest='output_format')
     parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
+    parser.add_argument('--no-mapping', help='Disable mapping of streets and cities', dest='no_mapping', default=False, action='store_const', const=True)
     parser.add_argument('gmina', nargs='+', help='list of iMPA services to download, it will use at most 4 concurrent threads to download and analyse')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
+
+    if args.no_mapping:
+        global mapstreet, mapcity
+        mapstreet = lambda x, y: x
+        mapcity = lambda x, y: x
 
     rets = parallel_execution(*map(lambda x: lambda: iMPA(x).fetchTiles(), args.gmina))
     if args.output_format == 'json':
