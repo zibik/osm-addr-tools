@@ -472,12 +472,12 @@ def downloadULIC():
 
 def getDict(keyname, valuename, coexitingtags=None):
     __log.info("Updating %s data from OSM, it may take a while", keyname)
-    tags = [keyname, ]
+    tags = [keyname, valuename]
     if coexitingtags:
         tags.extend(coexitingtags)
     soup = json.loads(overpass.getNodesWaysWithTags(tags, 'json'))
     ret = {}
-    for tag in soup['elements']
+    for tag in soup['elements']:
         symul = tag['tags'][keyname]
         street = tag['tags'][valuename]
         if street:
@@ -520,12 +520,10 @@ import utils
 __DB_OSM_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'osm_teryt_symul.db')
 __DB_OSM_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'osm_teryt_simc.db')
 __DB_TERYT_ULIC = os.path.join(tempfile.gettempdir(), 'teryt_ulic.db')
-__mapping_symul, __mapping_simc, __teryt_ulic = utils.parallel_execution(
-        lambda: storedDict(lambda: getDict('teryt:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL),
-        lambda: storedDict(lambda :getDict('teryt:simc', 'name', ['place']), __DB_OSM_TERYT_SIMC),
-        lambda: storedDict(lambda: downloadULIC(), __DB_TERYT_ULIC),
-    )
-
+__mapping_symul = storedDict(lambda: getDict('teryt:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL)
+__mapping_simc = storedDict(lambda: getDict('teryt:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC)
+__teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
+__printed = set()
 
 def mapstreet(strname, symul):
     try:
