@@ -1,4 +1,6 @@
 # # -*- coding: UTF-8 -*-
+# TODO:
+# - add warning, when street exists as a part of name in sym_ul dictionary or in ULIC
 
 addr_map = {
  '1-go Maja': '1 Maja',
@@ -439,29 +441,45 @@ else:
     from urllib.request import urlopen
 
 from bs4 import BeautifulSoup
+import io
+import json
+import logging
+import os
+import overpass
 import pickle
 import time
 import tempfile
-import os
-import overpass
-import logging
+import zipfile
+import xml.etree.ElementTree as ET
 
 __log = logging.getLogger(__name__)
 
+def downloadULIC():
+    __log.info("Updating ULIC data from TERYT, it may take a while")
+    soup = BeautifulSoup(urlopen("http://www.stat.gov.pl/broker/access/prefile/listPreFiles.jspa"))
+    fileLocation = soup.find('td', text="Katalog ulic").parent.find_all('a')[1]['href']
+    dictionary_zip = zipfile.ZipFile(io.BytesIO(urlopen("http://www.stat.gov.pl/broker/access/prefile/" + fileLocation).read()))
+    def get(elem, tag):
+        col = elem.find("col[@name='%s']" % tag)
+        if col.text:
+            return col.text
+        return ""
+    tree = ET.fromstring(dictionary_zip.read("ULIC.xml"))
+    ret = dict((get(row, "SYM_UL"), 
+                    " ".join((get(row, 'NAZWA_2'), get(row,'NAZWA_1')))
+               ) for row in tree.find('catalog').iter('row'))
+    return ret
 
-def getVal(node, tag):
-    n = node.find('tag', k=tag)
-    return n['v'] if n else None
-
-def fetchData(keyname, valuename, coexitingtags):
+def getDict(keyname, valuename, coexitingtags=None):
+    __log.info("Updating %s data from OSM, it may take a while", keyname)
     tags = [keyname, ]
     if coexitingtags:
         tags.extend(coexitingtags)
-    soup = BeautifulSoup(overpass.getNodesWaysWithTags(tags))
+    soup = json.loads(overpass.getNodesWaysWithTags(tags, 'json'))
     ret = {}
-    for tag in soup.find_all(['node', 'way']):
-        symul = getVal(tag, keyname)
-        street = getVal(tag, valuename)
+    for tag in soup['elements']
+        symul = tag['tags'][keyname]
+        street = tag['tags'][valuename]
         if street:
             try:
                 entry = ret[symul]
@@ -472,11 +490,10 @@ def fetchData(keyname, valuename, coexitingtags):
                 entry[street] += 1
             except KeyError:
                 entry[street] = 1
-    soup.decompose()
-    soup = None # weired problem with memory managemetn
+    ret = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, ret.items()))
     return ret
 
-def getDict(keyname, valuename, filename, coexitingtags=None):
+def storedDict(fetcher, filename):
     try:
         with open(filename, "rb") as f:
             data = pickle.load(f)
@@ -486,29 +503,29 @@ def getDict(keyname, valuename, filename, coexitingtags=None):
             'time': 0
         }
     if data['time'] < time.time() - 7*24*60*60:
-        # time for update
-        __log.info("Updating %s data from OSM, it may take a while", keyname)
-        new = fetchData(keyname, valuename, coexitingtags)
-        new = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, new.items()))
+        new = fetcher()
         data['dct'] = new
         data['time'] = time.time()
         try:
             with open(filename, "w+b") as f:
                 pickle.dump(data, f)
-        except: pass
+        except: 
+            __log.debug("Can't write file: %s", filename, exc_info=True)
     return data['dct']
 
 
 import utils
 
-__DB_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'teryt_symul.db')
-__DB_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'teryt_simc.db')
-__mapping_symul, __mapping_simc = utils.parallel_execution(
-        lambda: getDict('teryt:sym_ul', 'addr:street', __DB_TERYT_SYMUL),
-        lambda: getDict('teryt:simc', 'name', __DB_TERYT_SIMC, ['place']),
+# TODO: Do these on first access to mapping functions
+__DB_OSM_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'osm_teryt_symul.db')
+__DB_OSM_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'osm_teryt_simc.db')
+__DB_TERYT_ULIC = os.path.join(tempfile.gettempdir(), 'teryt_ulic.db')
+__mapping_symul, __mapping_simc, __teryt_ulic = utils.parallel_execution(
+        lambda: storedDict(lambda: getDict('teryt:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL),
+        lambda: storedDict(lambda :getDict('teryt:simc', 'name', ['place']), __DB_OSM_TERYT_SIMC),
+        lambda: storedDict(lambda: downloadULIC(), __DB_TERYT_ULIC),
     )
 
-__printed = set()
 
 def mapstreet(strname, symul):
     try:
@@ -519,7 +536,7 @@ def mapstreet(strname, symul):
         try:
             ret = __mapping_symul[symul]
             if ret != strname and ret not in __printed:
-                __log.info("mapping street %s -> %s" % (strname, ret))
+                __log.info("mapping street %s -> %s, TERYT NAZWA_2 + NAZWA_1: %s (teryt:sym_ul=%s) " % (strname, ret, __teryt_ulic[symul], symul))
                 __printed.add(ret)
             return ret
         except KeyError:
@@ -529,7 +546,7 @@ def mapcity(cityname, simc):
     try:
         ret = __mapping_simc[simc]
         if ret != cityname and ret not in __printed:
-            __log.info("mapping city %s -> %s" % (cityname, ret))
+            __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret))
             __printed.add(ret)
         return ret
     except KeyError:
