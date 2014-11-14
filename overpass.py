@@ -51,8 +51,8 @@ def getAddresses(terc):
 
 
 __query_ql_tag = """
-[out:xml]
-[timeout:600]
+[out:%(format)s]
+[timeout:1200]
 [maxsize:1073741824]
 ;
 area
@@ -72,17 +72,17 @@ area
 out;
 """
 
-def getNodesWaysWithTags(taglist):
+def getNodesWaysWithTags(taglist, format="xml"):
     tags = "\n\t".join(map(lambda x: '["' + x + '"]', taglist))
-    return query(__query_ql_tag % {'tags': tags})
+    return query(__query_ql_tag % {'tags': tags, 'format': format})
 
-def getNodesWaysWithTag(tagname):
-    return getNodesWaysWithTags([tagname, ])
+def getNodesWaysWithTag(tagname, format="xml"):
+    return getNodesWaysWithTags([tagname, ], format)
 
 
 
-__overpassurl = "http://overpass-api.de/api/interpreter"
 __overpassurl = "http://overpass.osm.rambler.ru/cgi/interpreter"
+__overpassurl = "http://overpass-api.de/api/interpreter"
 
 def query(qry):
     # TODO - check if the query succeeded
