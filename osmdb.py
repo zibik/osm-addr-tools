@@ -34,13 +34,14 @@ def _getAddr(soup):
     
 
 class OsmDb(object):
-    def __init__(self, osmdata):
+    def __init__(self, osmdata, keyfunc=lambda x: x):
         # assume osmdata is a BeautifulSoup object already
         # do it an assert
         if isinstance(osmdata, BeautifulSoup):
             soup = osmdata
         else:
             soup = BeautifulSoup(osmdata)
+        self.__keyfunc = keyfunc
         self.__index = index.Index()
         self.__index_entries = {}
         self.__addr_index = {}
@@ -54,7 +55,7 @@ class OsmDb(object):
                 self.__index.insert(_id, pos)
                 self.__index_entries[_id] = i
                 if i.find(k="addr:housenumber"):
-                    key = _getAddr(i)
+                    key = tuple(map(keyfunc, _getAddr(i)))
                     if key:
                         lst = self.__addr_index.get(key)
                         if not lst:
@@ -96,6 +97,7 @@ class OsmDb(object):
                    self.__index.nearest(point * 2, num_results)
                )
     def getbyaddress(self, key):
+        key = tuple(map(self.__keyfunc, key))
         return self.__addr_index.get(key, [])
 
     def getalladdresses(self):
