@@ -8,7 +8,7 @@ import pyproj
 from bs4 import BeautifulSoup
 from shapely.geometry import Point
 from punktyadresowe_import import iMPA
-from overpass import getAddresses
+import overpass 
 from utils import parallel_execution
 
 __log = logging.getLogger(__name__)
@@ -22,6 +22,46 @@ __log = logging.getLogger(__name__)
 
 
 __geod = pyproj.Geod(ellps="WGS84")
+
+def getAddresses(terc):
+    query = """
+[out:xml]
+[timeout:600]
+;
+area
+  ["boundary"="administrative"]
+  ["admin_level"="7"]
+  ["teryt:terc"~"%s"]
+  ["type"="boundary"]
+->.boundryarea;
+(
+  node
+    (area.boundryarea)
+    ["addr:housenumber"]
+    ["amenity"!~"."]
+    ["shop"!~"."]
+    ["tourism"!~"."]
+    ["emergency"!~"."]
+    ["company"!~"."];
+  way
+    (area.boundryarea)
+    ["addr:housenumber"];
+  way
+    (area.boundryarea)
+    ["building"];
+  relation
+    (area.boundryarea)
+    ["addr:housenumber"];
+  relation
+    (area.boundryarea)
+    ["building"];
+);
+out meta bb qt;
+>;
+out meta qt;
+""" % (terc,)
+    return overpass.query(query)
+
 
 def distance(a, b):
     """returns distance betwen a and b points in meters"""
@@ -237,7 +277,7 @@ def getEmptyOsm(meta):
 
 def mergeInc(asis, impdata, logIO):
     asis = BeautifulSoup(asis)
-    osmdb = OsmDb(asis)
+    osmdb = OsmDb(asis, keyfunc=str.upper)
     # TODO - refactor and add mergeAddrWithBuilding
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
@@ -257,7 +297,7 @@ def mergeInc(asis, impdata, logIO):
 
 def mergeFull(asis, impdata, logIO):
     asis = BeautifulSoup(asis, "xml")
-    osmdb = OsmDb(asis)
+    osmdb = OsmDb(asis, keyfunc=str.upper)
     # TODO - refactor and add mergeAddrWithBuilding
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
