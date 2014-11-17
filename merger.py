@@ -67,8 +67,6 @@ out meta bb qt;
 out meta qt;
 """ % (terc,)
     return overpass.query(query)
-    
-
 
 def distance(a, b):
     """returns distance betwen a and b points in meters"""
