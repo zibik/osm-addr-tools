@@ -8,7 +8,7 @@ import pyproj
 from bs4 import BeautifulSoup
 from shapely.geometry import Point
 from punktyadresowe_import import iMPA
-from overpass import getAddresses
+import overpass 
 from utils import parallel_execution
 
 __log = logging.getLogger(__name__)
@@ -20,12 +20,64 @@ __log = logging.getLogger(__name__)
 # apt-get install python3-pyproj libspatialindex-dev python3-shapely python3-bs4 python3-lxml 
 # easy_install3 Rtree
 
+# TODO
+# - usuwanie adresów nieznanych zaimportowanych z EMUiA
+# - przesuwanie adresów zaimportowanych z EMUiA
+# - priorytetyzacja dane z EMUiA, dane z importu, pozostale dane na mapie
+# - mergowanie adresów po sprawdzeniu wszystkich danych
+# - mergowanie adresów w 3 przebiegach, 2 ostatnie z buforem
 
 __geod = pyproj.Geod(ellps="WGS84")
+
+def getAddresses(terc):
+    query = """
+[out:xml]
+[timeout:600]
+;
+area
+  ["boundary"="administrative"]
+  ["admin_level"="7"]
+  ["teryt:terc"~"%s"]
+  ["type"="boundary"]
+->.boundryarea;
+(
+  node
+    (area.boundryarea)
+    ["addr:housenumber"]
+    ["amenity"!~"."]
+    ["shop"!~"."]
+    ["tourism"!~"."]
+    ["emergency"!~"."]
+    ["company"!~"."];
+  way
+    (area.boundryarea)
+    ["addr:housenumber"];
+  way
+    (area.boundryarea)
+    ["building"];
+  relation
+    (area.boundryarea)
+    ["addr:housenumber"];
+  relation
+    (area.boundryarea)
+    ["building"];
+);
+out meta bb qt;
+>;
+out meta qt;
+""" % (terc,)
+    return overpass.query(query)
+    
+
 
 def distance(a, b):
     """returns distance betwen a and b points in meters"""
     return __geod.inv(a[1], a[0], b[1], b[0])[2]
+
+def buffer(shp, meters=0):
+    # 0.0000089831528 is the 1m length in arc degrees of great circle
+    return shp.buffer(meters*0.0000089831528)
+
 
 def _getAddr(dct):
     if dct.get('addr:street'):
@@ -112,9 +164,33 @@ def _updateNode(node, entry):
     #ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
     #ret |= _updateTag(node, 'teryt:simc', entry['teryt:simc'])
     if ret:
+        source = node.find('tag', 'source')
+        if source and 'EMUIA' in source['v']:
+            # Remove EMUIA source, if updating from iMPA
+            source.extract()
         ret |= _updateTag(node, 'source:addr', entry['source:addr'])
         node['action'] = 'modify'
     return node
+
+def onlyAddressNode(node):
+    if node.name != 'node':
+        return False
+    return all(map(
+        lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 'addr:city', 'teryt:sym_ul', 'teryt:simc', 'source', 'source:addr'},
+        (x['k'] for x in node.find_all('tag'))
+        )
+    )
+
+def isEMUiAAddr(node):
+    ret = False
+    source = _getVal(node, 'source')
+    if source:
+        ret |= ('EMUIA' in source.upper())
+    source_addr = _getVal(node, 'source:addr')
+    if source_addr:
+        ret |= ('EMUIA' in source_addr.upper())
+    return ret
+
 
 def getcenter(node):
     try:
@@ -138,9 +214,20 @@ def _processOne(osmdb, entry):
     if existing:
         # we have something with this address in db
         # sort by distance
+        emuia_nodes = tuple(filter(lambda x: isEMUiAAddr(x) and onlyAddressNode(x), existing))
         existing = sorted(map(lambda x: (distance(entry_point, getcenter(x)), x), existing))
 
-        if len(existing) > 1:
+        # update location of first node
+        if emuia_nodes:
+            emuia_nodes[0]['lon'] = entry['location']['lon']
+            emuia_nodes[0]['lat'] = entry['location']['lat']
+
+        # all the others mark for deletion
+        if len(emuia_nodes)>1:
+            for node in emuia_nodes[1:]:
+                node['action'] = 'delete'
+
+        if len(existing) - len(emuia_nodes) > 1:
             # mark duplicates
             __log.warning("More than one address node for %s. Marking duplicates. Distances: %s", 
                             entrystr(entry), 
@@ -159,8 +246,10 @@ def _processOne(osmdb, entry):
     if candidates_within:
         c = candidates_within[0]
         if not c('tag', k='addr:housenumber'):
-            # no address on way/relation
-            return [_updateNode(c, entry)]
+            # no address on way/relation -> add address
+            # create a point, will be merged with building later
+            return [_createPoint(entry)]
+            #return [_updateNode(c, entry)]
         else:
             # WARNING - candidate has an address
 
@@ -210,19 +299,51 @@ def _processOne(osmdb, entry):
         return []
     return [_createPoint(entry)]
 
+def _mergeAddrWithBuilding(soup, osmdb, buf=0):
+    # TODO: first get candidates, then do merge
+    __log.info("Merging buildings with buffer: %s", buf)
+    for node in soup.find_all(lambda x: onlyAddressNode(x) and x.get('action')!='delete'):
+        if _getVal(node, 'fixme'):
+            __log.info("Skipping merging node: %s, because of fixme: %s", node['id'], _getVal(node, 'fixme'))
+        else:
+            entry_point = tuple(map(float, (node['lat'], node['lon'])))
+            candidates = list(osmdb.nearest(entry_point, num_results=10))
+            candidates_within = list(filter(lambda x: x.name in ('way', 'relation') and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
+            if candidates_within:
+                c = candidates_within[0]
+                if not c('tag', k='addr:housenumber'):
+                    # only merge with buildings without address
+                    c['action'] = 'modify'
+                    for tag in node.find_all('tag'):
+                        c.append(tag)
+                    # mark for deletion
+                    if int(node['id']) < 0:
+                        node.extract()
+                    else:
+                        node['action'] = 'delete'
+
+
 def mergeAddrWithBuilding(soup):
-    if soup.name == 'node':
-        entry_point = tuple(map(float, (soup['lat'], soup['lon'])))
-        candidates = list(osmdb.nearest(entry_point, num_results=10))
-        candidates_within = list(filter(lambda x: x.name in ('way', 'relation') and Point(entry_point).within(osmdb.getShape(x)), candidates))
-        if candidates_within:
-            c = candidates_within[0]
-            if not c('tag', k='addr:housenumber'):
-                # only merge with buildings without address
-                for tag in soup.find_all('tag'):
-                    c.append(tag)
-                # mark for deletion
-                soup['action'] = 'delete'
+    osmdb = OsmDb(soup, keyfunc=str.upper)
+    _mergeAddrWithBuilding(soup, osmdb, 0)
+    _mergeAddrWithBuilding(soup, osmdb, 2)
+    _mergeAddrWithBuilding(soup, osmdb, 5)
+    _mergeAddrWithBuilding(soup, osmdb, 10)
+
+def removeNotexitingAddresses(asis, impdata):
+    imp_addr = set(map(lambda x: tuple(map(lambda x: str.upper(x) if x else x, _getAddr(x))), impdata))
+    osmdb = OsmDb(asis, keyfunc=str.upper)
+    for addr in (set(osmdb.getalladdresses()) - imp_addr):
+        entries = osmdb.getbyaddress(addr)
+        for entry in entries:
+            fixme = _getVal(entry, 'fixme')
+            if not fixme:
+                fixme = ""
+            if onlyAddressNode(entry) and isEMUiAAddr(entry):
+                _updateTag(entry, 'fixme', 'Delete this node with address. Comes from obsolete EMUiA import, now doesn''t exist. ' +fixme)
+            else:
+                _updateTag(entry, 'fixme', 'Delete addr fields from this node. Comes from obsolete EMUiA import, now doesn''t exit. ' +fixme)
+            
 
 def getEmptyOsm(meta):
     ret = BeautifulSoup("", "xml")
@@ -237,14 +358,17 @@ def getEmptyOsm(meta):
 
 def mergeInc(asis, impdata, logIO):
     asis = BeautifulSoup(asis)
-    osmdb = OsmDb(asis)
-    # TODO - refactor and add mergeAddrWithBuilding
+    osmdb = OsmDb(asis, keyfunc=str.upper)
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
+
+    removeNotexitingAddresses(asis, impdata)
+    mergeAddrWithBuilding(asis)
+
     ret = getEmptyOsm(asis.meta)
 
     # add all modified nodes, way and relations
-    for i in filter(lambda x: x.get('action') == 'modify', new_nodes):
+    for i in filter(lambda x: x.get('action'), new_nodes):
         ret.osm.append(i)
     nd_refs = set(i['ref'] for i in ret.find_all('nd'))
     nodes = set(i['id'] for i in ret.find_all('node'))
@@ -257,10 +381,11 @@ def mergeInc(asis, impdata, logIO):
 
 def mergeFull(asis, impdata, logIO):
     asis = BeautifulSoup(asis, "xml")
-    osmdb = OsmDb(asis)
-    # TODO - refactor and add mergeAddrWithBuilding
+    osmdb = OsmDb(asis, keyfunc=str.upper)
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
+    removeNotexitingAddresses(asis, impdata)
+    mergeAddrWithBuilding(asis)
     ret = asis
     for i in filter(lambda x: x.get('action') == 'modify',new_nodes):
         _updateTag(i, 'import:action', 'modify')
