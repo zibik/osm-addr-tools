@@ -55,7 +55,7 @@ class OsmDb(object):
                 self.__index.insert(_id, pos)
                 self.__index_entries[_id] = i
                 if i.find(k="addr:housenumber"):
-                    key = tuple(map(keyfunc, _getAddr(i)))
+                    key = tuple(keyfunc(x) if x else x for x in _getAddr(i))
                     if key:
                         lst = self.__addr_index.get(key)
                         if not lst:
@@ -97,7 +97,7 @@ class OsmDb(object):
                    self.__index.nearest(point * 2, num_results)
                )
     def getbyaddress(self, key):
-        key = tuple(map(self.__keyfunc, key))
+        key = tuple(self.__keyfunc(x) if x else x for x in key)
         return self.__addr_index.get(key, [])
 
     def getalladdresses(self):
