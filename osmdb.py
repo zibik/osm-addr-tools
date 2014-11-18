@@ -120,7 +120,7 @@ class OsmDb(object):
                                                     (x['role'] == 'outer' or not x.get('role')))
                     )
             
-            way_by_first_node = dict((x.find('node')['id'], x) for x in outer)
+            way_by_first_node = dict((x.find('nd')['ref'], x) for x in outer)
             ret = []
             cur_elem = outer.pop()
             while outer:
