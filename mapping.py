@@ -182,6 +182,7 @@ addr_map = {
  'Kruczkowskiego': 'Leona Kruczkowskiego',
  'Krzyżanowskiego Juliana': 'Juliana Krzyżanowskiego',
  'Ks. Elżbiety': 'Księżnej Elżbiety',
+ 'Ks. Jana Twardowskiego': 'Księdza Jana Twardowskiego',
  'Kuczkowskiego Ignacego': 'Ignacego Kuczkowskiego',
  'Kurpińskiego Karola': 'Karola Kurpińskiego',
  'Kusocińskiego J.': 'Janusza Kusocińskiego',
