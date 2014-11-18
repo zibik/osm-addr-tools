@@ -122,7 +122,7 @@ class OsmDb(object):
             
             way_by_first_node = dict((x.find('nd')['ref'], x) for x in outer)
             ret = []
-            cur_elem = outer.pop()
+            cur_elem = outer[0]
             while outer:
                 node_ids = list(y['ref'] for y in cur_elem.find_all('nd', recursive=False))
                 ret.extend(tuple(map(float, (x['lat'], x['lon']))) for x in (self.__nodes[y] for y in node_ids))
