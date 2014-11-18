@@ -1,6 +1,5 @@
 from flask import Flask, make_response as _make_response
-from merger import mergeInc, mergeFull
-from overpass import getAddresses
+from merger import mergeInc, mergeFull, getAddresses
 from punktyadresowe_import import iMPA
 import utils
 
