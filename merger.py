@@ -163,20 +163,21 @@ def _updateNode(node, entry):
     ret |= _updateTag(node, 'addr:housenumber', entry['addr:housenumber'])
     #ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
     #ret |= _updateTag(node, 'teryt:simc', entry['teryt:simc'])
-    if ret:
-        source = node.find('tag', 'source')
-        if source and 'EMUIA' in source['v']:
+    if ret or isEMUiAAddr(node):
+        source = node.find('tag', k='source')
+        if source and 'EMUIA' in source['v'].upper():
             # Remove EMUIA source, if updating from iMPA
             source.extract()
         ret |= _updateTag(node, 'source:addr', entry['source:addr'])
         node['action'] = 'modify'
+    assert isEMUiAAddr(node) == False
     return node
 
 def onlyAddressNode(node):
     if node.name != 'node':
         return False
     return all(map(
-        lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 'addr:city', 'teryt:sym_ul', 'teryt:simc', 'source', 'source:addr'},
+        lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 'addr:city', 'addr:postcode', 'teryt:sym_ul', 'teryt:simc', 'source', 'source:addr'},
         (x['k'] for x in node.find_all('tag'))
         )
     )
@@ -295,6 +296,10 @@ def _processOne(osmdb, entry):
                 ret.append(_updateNode(c, entry))
             if ret:
                 return ret
+        if all(map(isEMUiAAddr, candidates_same)):
+            ret = [_createPoint(entry)]
+            _updateTag(ret[0], 'fixme', 'Check for nearby EMUiA address that might be obsolete')
+            return ret
         __log.info("Found probably same address node at (%s, %s). Skipping. Address is: %s", entry['location']['lon'], entry['location']['lat'], entry)
         return []
     return [_createPoint(entry)]
@@ -333,18 +338,27 @@ def mergeAddrWithBuilding(soup):
 def removeNotexitingAddresses(asis, impdata):
     imp_addr = set(map(lambda x: tuple(map(lambda x: str.upper(x) if x else x, _getAddr(x))), impdata))
     osmdb = OsmDb(asis, keyfunc=str.upper)
+    ret = []
     for addr in (set(osmdb.getalladdresses()) - imp_addr):
         entries = osmdb.getbyaddress(addr)
         for entry in entries:
+            ret.append(entry)
             fixme = _getVal(entry, 'fixme')
             if not fixme:
                 fixme = ""
-            if onlyAddressNode(entry) and isEMUiAAddr(entry):
-                _updateTag(entry, 'fixme', 'Delete this node with address. Comes from obsolete EMUiA import, now doesn''t exist. ' +fixme)
+            if isEMUiAAddr(entry):
+                if onlyAddressNode(entry):
+                    __log.debug("Marking entry to delete: %s", entry)
+                    _updateTag(entry, 'fixme', 'Delete this node with address. Comes from obsolete EMUiA import, now doesn''t exist. ' +fixme)
+                else:
+                    __log.debug("Marking entry to delete: %s", entry)
+                    _updateTag(entry, 'fixme', 'Delete addr fields from this node. Comes from obsolete EMUiA import, now doesn''t exit. ' +fixme)
+                if entry.get('action') != 'delete':
+                    entry['action'] = 'modify'
             else:
-                _updateTag(entry, 'fixme', 'Delete addr fields from this node. Comes from obsolete EMUiA import, now doesn''t exit. ' +fixme)
-            if entry.get('action') != 'delete':
-                entry['action'] = 'modify'
+                __log.warning("iMPA doesn't contain address present in OSM. Marking with fixme=Check existance")
+                _updateTag(entry, 'fixme', 'Check existance. ' +fixme)
+    return ret
             
 
 def getEmptyOsm(meta):
@@ -358,13 +372,13 @@ def getEmptyOsm(meta):
     ret.osm.append(meta)
     return ret
 
-def mergeInc(asis, impdata, logIO):
-    asis = BeautifulSoup(asis)
+def mergeInc(asis, impdata, logIO=None):
+    asis = BeautifulSoup(asis, "xml")
     osmdb = OsmDb(asis, keyfunc=str.upper)
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
 
-    removeNotexitingAddresses(asis, impdata)
+    new_nodes.extend(removeNotexitingAddresses(asis, impdata))
     mergeAddrWithBuilding(asis)
 
     ret = getEmptyOsm(asis.meta)
@@ -378,17 +392,19 @@ def mergeInc(asis, impdata, logIO):
     for i in asis.find_all(lambda x: x.name == 'node' and x['id'] in nd_refs):
         ret.osm.append(i)
     # add log entries as note
-    ret.osm.note.string = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.\n" + logIO.getvalue()
+    ret.osm.note.string = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.\n"
+    if logIO:
+        ret.osm.note.string += logIO.getvalue()
     return ret.prettify()
 
-def mergeFull(asis, impdata, logIO):
+def mergeFull(asis, impdata, logIO=None):
     asis = BeautifulSoup(asis, "xml")
     osmdb = OsmDb(asis, keyfunc=str.upper)
 
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
 
-    removeNotexitingAddresses(asis, impdata)
+    new_nodes.extend(removeNotexitingAddresses(asis, impdata))
     mergeAddrWithBuilding(asis)
 
     ret = asis
@@ -396,7 +412,9 @@ def mergeFull(asis, impdata, logIO):
         _updateTag(i, 'import:action', 'modify')
     for i in filter(lambda x: float(x['id']) < 0, new_nodes):
         asis.osm.append(i)
-    asis.osm.note.string = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.\n" + logIO.getvalue()
+    asis.osm.note.string = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.\n"
+    if logIO:
+        asis.osm.note.string += logIO.getvalue()
     return asis.prettify()
         
 def main():
