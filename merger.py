@@ -341,6 +341,8 @@ def removeNotexitingAddresses(asis, impdata):
                 _updateTag(entry, 'fixme', 'Delete this node with address. Comes from obsolete EMUiA import, now doesn''t exist. ' +fixme)
             else:
                 _updateTag(entry, 'fixme', 'Delete addr fields from this node. Comes from obsolete EMUiA import, now doesn''t exit. ' +fixme)
+            if entry.get('action') != 'delete':
+                entry['action'] = 'modify'
             
 
 def getEmptyOsm(meta):
@@ -380,10 +382,13 @@ def mergeInc(asis, impdata, logIO):
 def mergeFull(asis, impdata, logIO):
     asis = BeautifulSoup(asis, "xml")
     osmdb = OsmDb(asis, keyfunc=str.upper)
+
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
+
     removeNotexitingAddresses(asis, impdata)
     mergeAddrWithBuilding(asis)
+
     ret = asis
     for i in filter(lambda x: x.get('action') == 'modify',new_nodes):
         _updateTag(i, 'import:action', 'modify')
