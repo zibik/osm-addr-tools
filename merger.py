@@ -22,13 +22,6 @@ __log = logging.getLogger(__name__)
 # apt-get install python3-pyproj libspatialindex-dev python3-shapely python3-bs4 python3-lxml 
 # easy_install3 Rtree
 
-# TODO
-# - usuwanie adresów nieznanych zaimportowanych z EMUiA
-# - przesuwanie adresów zaimportowanych z EMUiA
-# - priorytetyzacja dane z EMUiA, dane z importu, pozostale dane na mapie
-# - mergowanie adresów po sprawdzeniu wszystkich danych
-# - mergowanie adresów w 3 przebiegach, 2 ostatnie z buforem
-
 __geod = pyproj.Geod(ellps="WGS84")
 
 def getAddresses(terc):
