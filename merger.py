@@ -324,18 +324,22 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
         (x['id'], x) for x in soup.find_all('way')
     )
     __log.info("Merging %d addresses with buildings", len(tuple(filter(lambda x: len(x[1]) == 1, to_merge.items()))))
-    for (_id, nodes) in filter(lambda x: len(x[1]) == 1, to_merge.items()):
-        node = nodes[0]
+    for (_id, nodes) in to_merge.items():
         c = buildings[_id]
-        c['action'] = 'modify'
-        for tag in node.find_all('tag'):
-            c.append(tag)
-        # mark for deletion
-        if int(node['id']) < 0:
-            node.extract()
-        else:
-            node['action'] = 'delete'
-
+        c['action'] = 'modify' # all buildings mark as modify, so they will be visible in changeset as candidates or merging
+        if len(nodes) == 1:
+            node = nodes[0]
+            for tag in node.find_all('tag'):
+                c.append(tag)
+            # mark for deletion
+            if int(node['id']) < 0:
+                node.extract()
+            else:
+                node['action'] = 'delete'
+        if len(nodes) > 1: # ensure, that all nodes will be visible for manual addr merging
+            for node in nodes:
+                if node['action'] != 'delete':
+                    node['action'] = 'modify'
 
 def mergeAddrWithBuilding(soup):
     osmdb = OsmDb(soup, keyfunc=str.upper)
