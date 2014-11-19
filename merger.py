@@ -321,7 +321,7 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
 
     # do the merge, when only one candidate exists
     buildings = dict(
-        (x['id'], x) for x in soup.find_all('way')
+        (x['id'], x) for x in soup.find_all(['way', 'relation'])
     )
     __log.info("Merging %d addresses with buildings", len(tuple(filter(lambda x: len(x[1]) == 1, to_merge.items()))))
     for (_id, nodes) in to_merge.items():
@@ -399,7 +399,7 @@ def mergeInc(asis, impdata, logIO=None):
     ret = getEmptyOsm(asis.meta)
 
     # add all modified nodes, way and relations
-    for i in filter(lambda x: x.get('action'), new_nodes):
+    for i in filter(lambda x: x.get('action'), asis.find_all(['node', 'way', 'relation'])):
         ret.osm.append(i)
     nd_refs = set(i['ref'] for i in ret.find_all('nd'))
     nodes = set(i['id'] for i in ret.find_all('node'))
@@ -423,7 +423,7 @@ def mergeFull(asis, impdata, logIO=None):
     mergeAddrWithBuilding(asis)
 
     ret = asis
-    for i in filter(lambda x: x.get('action') == 'modify',new_nodes):
+    for i in filter(lambda x: x.get('action') == 'modify', asis.find_all(['node', 'way', 'relation'])):
         _updateTag(i, 'import:action', 'modify')
     for i in filter(lambda x: float(x['id']) < 0, new_nodes):
         asis.osm.append(i)
