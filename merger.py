@@ -338,7 +338,7 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
                 node['action'] = 'delete'
         if len(nodes) > 1: # ensure, that all nodes will be visible for manual addr merging
             for node in nodes:
-                if node['action'] != 'delete':
+                if node.get('action') != 'delete':
                     node['action'] = 'modify'
 
 def mergeAddrWithBuilding(soup):
