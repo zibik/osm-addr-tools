@@ -310,8 +310,8 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
             candidates_within = list(filter(lambda x: x.name in ('way', 'relation') and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
             if candidates_within:
                 c = candidates_within[0]
-                if not c('tag', k='addr:housenumber'):
-                    # only merge with buildings without address
+                if not c('tag', k='addr:housenumber') and not c('tag', k='fixme'):
+                    # only merge with buildings without address and without fixmes
                     try:
                         lst = to_merge[c['id']]
                     except KeyError:
@@ -323,8 +323,8 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
     buildings = dict(
         (x['id'], x) for x in soup.find_all('way')
     )
-
-    for (_id, nodes) in filter(lambda k,v: len(v) == 1, to_merge.items()):
+    __log.info("Merging %d addresses with buildings", len(tuple(filter(lambda x: len(x[1]) == 1, to_merge.items()))))
+    for (_id, nodes) in filter(lambda x: len(x[1]) == 1, to_merge.items()):
         node = nodes[0]
         c = buildings[_id]
         c['action'] = 'modify'
