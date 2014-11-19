@@ -300,6 +300,7 @@ def _processOne(osmdb, entry):
 def _mergeAddrWithBuilding(soup, osmdb, buf=0):
     # TODO: first get candidates, then do merge
     __log.info("Merging buildings with buffer: %s", buf)
+    to_merge = {} # dictionary - building node_id -> list of address nodes
     for node in soup.find_all(lambda x: onlyAddressNode(x) and x.get('action')!='delete'):
         if _getVal(node, 'fixme'):
             __log.info("Skipping merging node: %s, because of fixme: %s", node['id'], _getVal(node, 'fixme'))
@@ -311,14 +312,29 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
                 c = candidates_within[0]
                 if not c('tag', k='addr:housenumber'):
                     # only merge with buildings without address
-                    c['action'] = 'modify'
-                    for tag in node.find_all('tag'):
-                        c.append(tag)
-                    # mark for deletion
-                    if int(node['id']) < 0:
-                        node.extract()
-                    else:
-                        node['action'] = 'delete'
+                    try:
+                        lst = to_merge[c['id']]
+                    except KeyError:
+                        lst = []
+                        to_merge[c['id']] = lst
+                    lst.append(node)
+
+    # do the merge, when only one candidate exists
+    buildings = dict(
+        (x['id'], x) for x in soup.find_all('way')
+    )
+
+    for (_id, nodes) in filter(lambda k,v: len(v) == 1, to_merge.items()):
+        node = nodes[0]
+        c = buildings[_id]
+        c['action'] = 'modify'
+        for tag in node.find_all('tag'):
+            c.append(tag)
+        # mark for deletion
+        if int(node['id']) < 0:
+            node.extract()
+        else:
+            node['action'] = 'delete'
 
 
 def mergeAddrWithBuilding(soup):
@@ -351,6 +367,8 @@ def removeNotexitingAddresses(asis, impdata):
             else:
                 __log.warning("iMPA doesn't contain address present in OSM. Marking with fixme=Check existance")
                 _updateTag(entry, 'fixme', 'Check existance. ' +fixme)
+                if entry.get('action') != 'delete':
+                    entry['action'] = 'modify'
     return ret
             
 
