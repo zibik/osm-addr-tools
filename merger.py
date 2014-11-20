@@ -128,6 +128,7 @@ def _createPoint(entry):
     addTag('addr:housenumber', entry['addr:housenumber'])
     addTag('source:addr', entry['source:addr'])
     addTag('teryt:simc', entry.get('teryt:simc'))
+    addTag('fixme', entry.get('fixme'))
     return node
         
 
@@ -154,8 +155,12 @@ def _updateNode(node, entry):
             ret |= bool(rmv.extract())
             assert ret == True
     ret |= _updateTag(node, 'addr:housenumber', entry['addr:housenumber'])
-    #ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
-    #ret |= _updateTag(node, 'teryt:simc', entry['teryt:simc'])
+    ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
+    ret |= _updateTag(node, 'teryt:simc', entry['teryt:simc'])
+    if entry.get('fixme'):
+        fixme = entry['fixme'] + ' ' + _getVal(node, 'fixme')
+        ret |= _updateTag(node, 'fixme', fixme)
+
     if ret or isEMUiAAddr(node):
         source = node.find('tag', k='source')
         if source and 'EMUIA' in source['v'].upper():
