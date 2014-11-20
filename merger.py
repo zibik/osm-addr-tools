@@ -234,8 +234,10 @@ def _processOne(osmdb, entry):
                             ", ".join(str(x[0]) for x in existing)
                          )
             for (n, (dist, node)) in enumerate(existing):
-                _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
-                node['action'] = 'modify' # keep all duplicates in file
+                if n > 0:
+                    # skip closest one
+                    _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
+                    node['action'] = 'modify' # keep all duplicates in file
         # update address on all elements
         if max(x[0] for x in existing) > 50:
             for node in existing:
