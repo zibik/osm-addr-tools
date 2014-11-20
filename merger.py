@@ -348,7 +348,7 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
                         way['action'] = 'modify'
         if len(nodes) == 1:
             __log.debug("building: %s - merging with address", _id)
-            mergeAddr(c, node)
+            mergeAddr(c, nodes[0])
         if len(nodes) > 1: # ensure, that all nodes will be visible for manual addr merging
             __log.debug("building: %s - leaving building and addresses unmerged", _id)
             for node in nodes:
