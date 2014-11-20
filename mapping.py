@@ -545,7 +545,7 @@ def mapcity(cityname, simc):
     try:
         ret = __mapping_simc[simc]
         if ret != cityname and ret not in __printed:
-            __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret))
+            __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret, simc))
             __printed.add(ret)
         return ret
     except KeyError:
