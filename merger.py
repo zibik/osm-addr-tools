@@ -169,7 +169,7 @@ def _updateNode(node, entry):
 def onlyAddressNode(node):
     if node.name != 'node':
         return False
-    return all(map(
+    return _getVal(node, 'addr:housenumber') and all(map(
         lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 'addr:city', 'addr:postcode', 'teryt:sym_ul', 'teryt:simc', 'source', 'source:addr'},
         (x['k'] for x in node.find_all('tag'))
         )
@@ -297,6 +297,15 @@ def _processOne(osmdb, entry):
         return []
     return [_createPoint(entry)]
 
+def mergeAddr(node, addr):
+    for tag in addr.find_all('tag'):
+        node.append(tag)
+    # mark for deletion
+    if int(addr['id']) < 0:
+        addr.extract()
+    else:
+        addr['action'] = 'delete'
+
 def _mergeAddrWithBuilding(soup, osmdb, buf=0):
     # TODO: first get candidates, then do merge
     __log.info("Merging buildings with buffer: %s", buf)
@@ -307,38 +316,44 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
         else:
             entry_point = tuple(map(float, (node['lat'], node['lon'])))
             candidates = list(osmdb.nearest(entry_point, num_results=10))
-            candidates_within = list(filter(lambda x: x.name in ('way', 'relation') and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
+            # first look for relations and if this fails check for ways
+            candidates_within = list(filter(lambda x: x.name == 'relation' and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
+            if not candidates_within:
+                candidates_within = list(filter(lambda x: x.name == 'way' and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
             if candidates_within:
                 c = candidates_within[0]
+                key = "%s:%s" % (c.name, c['id'])
                 if not c('tag', k='addr:housenumber') and not c('tag', k='fixme'):
                     # only merge with buildings without address and without fixmes
                     try:
-                        lst = to_merge[c['id']]
+                        lst = to_merge[key]
                     except KeyError:
                         lst = []
-                        to_merge[c['id']] = lst
+                        to_merge[key] = lst
                     lst.append(node)
 
     # do the merge, when only one candidate exists
     buildings = dict(
-        (x['id'], x) for x in soup.find_all(['way', 'relation'])
+        ("%s:%s" % (x.name, x['id']), x) for x in soup.find_all(['way', 'relation'])
     )
     __log.info("Merging %d addresses with buildings", len(tuple(filter(lambda x: len(x[1]) == 1, to_merge.items()))))
     for (_id, nodes) in to_merge.items():
         c = buildings[_id]
-        c['action'] = 'modify' # all buildings mark as modify, so they will be visible in changeset as candidates or merging
+        if len(nodes) > 0:
+            __log.debug("building: %s - marking as modified", _id)
+            c['action'] = 'modify' # all buildings mark as modify, so they will be visible in changeset as candidates or merging
+            if c.name == 'relation':
+                for way in map(buildings.get, ("%s:%s" % (x['type'], x['ref']) for x in c.find_all('member'))):
+                    if way.get('action') != 'delete':
+                        way['action'] = 'modify'
         if len(nodes) == 1:
-            node = nodes[0]
-            for tag in node.find_all('tag'):
-                c.append(tag)
-            # mark for deletion
-            if int(node['id']) < 0:
-                node.extract()
-            else:
-                node['action'] = 'delete'
+            __log.debug("building: %s - merging with address", _id)
+            mergeAddr(c, node)
         if len(nodes) > 1: # ensure, that all nodes will be visible for manual addr merging
+            __log.debug("building: %s - leaving building and addresses unmerged", _id)
             for node in nodes:
                 if node.get('action') != 'delete':
+                    __log.debug("address: %s - marking as modified, just to be sure", node['id'])
                     node['action'] = 'modify'
 
 def mergeAddrWithBuilding(soup):
