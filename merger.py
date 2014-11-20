@@ -155,10 +155,11 @@ def _updateNode(node, entry):
             ret |= bool(rmv.extract())
             assert ret == True
     ret |= _updateTag(node, 'addr:housenumber', entry['addr:housenumber'])
-    ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
-    ret |= _updateTag(node, 'teryt:simc', entry['teryt:simc'])
+    #ret |= _updateTag(node, 'teryt:sym_ul', entry['teryt:sym_ul'])
+    #ret |= _updateTag(node, 'teryt:simc', entry.get('teryt:simc'))
     if entry.get('fixme'):
-        fixme = entry['fixme'] + ' ' + _getVal(node, 'fixme')
+        newfixme = _getVal(node, 'fixme')
+        fixme = entry['fixme'] + ' ' + newfixme if newfixme else ''
         ret |= _updateTag(node, 'fixme', fixme)
 
     if ret or isEMUiAAddr(node):
@@ -236,6 +237,9 @@ def _processOne(osmdb, entry):
                 _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
                 node['action'] = 'modify' # keep all duplicates in file
         # update address on all elements
+        if max(x[0] for x in existing) > 50:
+            for node in existing:
+                __log.warning("Address (id=%s) %s is %d meters from imported point", node[1]['id'], entrystr(entry), node[0])
         return list(map(lambda x: _updateNode(x[1], entry), existing))    
 
     # look for building nearby
@@ -298,7 +302,7 @@ def _processOne(osmdb, entry):
             ret = [_createPoint(entry)]
             _updateTag(ret[0], 'fixme', 'Check for nearby EMUiA address that might be obsolete')
             return ret
-        __log.info("Found probably same address node at (%s, %s). Skipping. Address is: %s", entry['location']['lon'], entry['location']['lat'], entry)
+        __log.info("Found probably same address node at (%s, %s). Skipping. Address is: %s", entry['location']['lon'], entry['location']['lat'], entrystr(entry))
         return []
     return [_createPoint(entry)]
 
@@ -419,6 +423,8 @@ def mergeInc(asis, impdata, logIO=None):
 
     # add all modified nodes, way and relations
     for i in filter(lambda x: x.get('action'), asis.find_all(['node', 'way', 'relation'])):
+        ret.osm.append(i)
+    for i in filter(lambda x: x['id'] < 0, new_nodes):
         ret.osm.append(i)
     nd_refs = set(i['ref'] for i in ret.find_all('nd'))
     nodes = set(i['id'] for i in ret.find_all('node'))
