@@ -307,7 +307,6 @@ def mergeAddr(node, addr):
         addr['action'] = 'delete'
 
 def _mergeAddrWithBuilding(soup, osmdb, buf=0):
-    # TODO: first get candidates, then do merge
     __log.info("Merging buildings with buffer: %s", buf)
     to_merge = {} # dictionary - building node_id -> list of address nodes
     for node in soup.find_all(lambda x: onlyAddressNode(x) and x.get('action')!='delete'):
@@ -448,6 +447,7 @@ def mergeFull(asis, impdata, logIO=None):
     return asis.prettify()
         
 def main():
+    # TODO: create mode where no unchanged data are returned (as addresses to be merged with buildings)
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, 
     description="""Merge data from WMS with OSM data. Generate output OSM file for JOSM. You need to provide one of:
     1. --impa with service name
