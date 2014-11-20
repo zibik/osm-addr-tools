@@ -424,7 +424,7 @@ def mergeInc(asis, impdata, logIO=None):
     # add all modified nodes, way and relations
     for i in filter(lambda x: x.get('action'), asis.find_all(['node', 'way', 'relation'])):
         ret.osm.append(i)
-    for i in filter(lambda x: x['id'] < 0, new_nodes):
+    for i in filter(lambda x: int(x['id']) < 0, new_nodes):
         ret.osm.append(i)
     nd_refs = set(i['ref'] for i in ret.find_all('nd'))
     nodes = set(i['id'] for i in ret.find_all('node'))
