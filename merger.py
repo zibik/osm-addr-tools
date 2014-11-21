@@ -128,7 +128,8 @@ def _createPoint(entry):
     addTag('addr:housenumber', entry['addr:housenumber'])
     addTag('source:addr', entry['source:addr'])
     addTag('teryt:simc', entry.get('teryt:simc'))
-    addTag('fixme', entry.get('fixme'))
+    if entry.get('fixme'):
+        addTag('fixme', entry.get('fixme'))
     return node
         
 
