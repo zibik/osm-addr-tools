@@ -202,7 +202,14 @@ def getcenter(node):
                  (sum(map(float, (b['minlon'], b['maxlon']))))/2)
    
 def entrystr(entry):
-    return "%s, %s, %s" % (entry.get('addr:city'), entry.get('addr:street') if entry.get('addr:street') else entry.get('addr:place'), entry.get('addr:housenumber'))
+    return "%s, %s, %s" % ( entry.get('addr:city'), 
+                            entry.get('addr:street') if entry.get('addr:street') else entry.get('addr:place'), 
+                            entry.get('addr:housenumber'))
+
+def nodestr(node):
+    return "%s, %s, %s" % ( _getVal(node, 'addr:city'), 
+                            _getVal(node, 'addr:street') if _getVal(node, 'addr:street') else _getVal(node, 'addr:place'), 
+                            _getVal(node, 'addr:housenumber'))
 
 def _processOne(osmdb, entry):
     """process one entry (of type dict) and work with OsmDb instance to find addresses to merge
@@ -239,10 +246,10 @@ def _processOne(osmdb, entry):
                     # skip closest one
                     _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
                 node['action'] = 'modify' # keep all duplicates in file
-        # update address on all elements
         if max(x[0] for x in existing) > 100:
             for node in existing:
                 __log.warning("Address (id=%s) %s is %d meters from imported point", node[1]['id'], entrystr(entry), node[0])
+        # update address on all elements
         return list(map(lambda x: _updateNode(x[1], entry), existing))    
 
     # look for building nearby
@@ -310,12 +317,16 @@ def _processOne(osmdb, entry):
     return [_createPoint(entry)]
 
 def mergeAddr(node, addr):
+    __log.info("Merging addr %s with building", nodestr(addr))
     for tag in addr.find_all('tag'):
         node.append(tag)
     # mark for deletion
     if int(addr['id']) < 0:
+        __log.info("Removing address node")
         addr.extract()
     else:
+        # TODO - check if the addr node is used in ways - if so, remove addr tags
+        __log.info("Marking address node for deletion")
         addr['action'] = 'delete'
 
 def _mergeAddrWithBuilding(soup, osmdb, buf=0):
