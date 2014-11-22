@@ -121,7 +121,7 @@ def _createPoint(entry):
     if 'addr:street' in entry:
         addTag('addr:street', entry['addr:street'])
         addTag('addr:city', entry['addr:city'])
-        addTag('teryt:sym_ul', entry.get('teryt:sym_ul'))
+        #addTag('teryt:sym_ul', entry.get('teryt:sym_ul'))
     if 'addr:place' in entry:
         addTag('addr:place', entry['addr:place'])
 
@@ -216,8 +216,10 @@ def _processOne(osmdb, entry):
 
     returns list of updated nodes (might be more than one, but at most one will be added
     """
-    entry_point = tuple(map(float, (entry['location']['lat'], entry['location']['lon'])))
+    __log.debug("Processing address: %s", entrystr(entry))
 
+    entry_point = tuple(map(float, (entry['location']['lat'], entry['location']['lon'])))
+    
     existing = osmdb.getbyaddress(_getAddr(entry))
     if existing:
         # we have something with this address in db
@@ -235,22 +237,23 @@ def _processOne(osmdb, entry):
             for node in emuia_nodes[1:]:
                 node['action'] = 'delete'
 
+        if max(x[0] for x in existing) > 100:
+            for node in existing:
+                __log.warning("Address (id=%s) %s is %d meters from imported point", node[1]['id'], entrystr(entry), node[0])
+
         if len(existing) - len(emuia_nodes) > 1:
             # mark duplicates
-            __log.warning("More than one address node for %s. Marking duplicates. Distances: %s", 
+            __log.warning("More than one address node for %s. Marking duplicates. %s", 
                             entrystr(entry), 
-                            ", ".join(str(x[0]) for x in existing)
+                            ", ".join("Id: %s:%s, dist: %sm" % (x[1].name, x[1]['id'], str(x[0])) for x in existing)
                          )
             for (n, (dist, node)) in enumerate(existing):
                 if n > 0:
                     # skip closest one
                     _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
                 node['action'] = 'modify' # keep all duplicates in file
-        if max(x[0] for x in existing) > 100:
-            for node in existing:
-                __log.warning("Address (id=%s) %s is %d meters from imported point", node[1]['id'], entrystr(entry), node[0])
-        # update address on all elements
-        return list(map(lambda x: _updateNode(x[1], entry), existing))    
+        # update data only on first duplicate, rest - leave to OSM-ers
+        return [_updateNode(existing[0], entry)]
 
     # look for building nearby
     candidates = list(osmdb.nearest(entry_point, num_results=10))
@@ -275,7 +278,7 @@ def _processOne(osmdb, entry):
                     # take addr:street value from OSM instead of imported data
                     entry['addr:street'] = _getVal(c, 'addr:street')
                 else:
-                    __log.warning("Update not based on address but on location, but have the same address")
+                    __log.warning("Update not based on address but on location, but have the same address for: %s (id: %s)", entrystr(entry), c['id'])
                 return [_updateNode(c, entry)]
             else:
                 if c.get('addr:city') == c.get('addr:place') and not(c.get('addr:street')) and _valEq(
@@ -317,16 +320,15 @@ def _processOne(osmdb, entry):
     return [_createPoint(entry)]
 
 def mergeAddr(node, addr):
-    __log.info("Merging addr %s with building", nodestr(addr))
     for tag in addr.find_all('tag'):
         node.append(tag)
     # mark for deletion
     if int(addr['id']) < 0:
-        __log.info("Removing address node")
+        __log.info("Merging addr %s with building. Removing address node: %s", nodestr(addr), addr['id'])
         addr.extract()
     else:
         # TODO - check if the addr node is used in ways - if so, remove addr tags
-        __log.info("Marking address node for deletion")
+        __log.info("Merging addr %s with building. Marking address node for deletion: %s", nodestr(addr), addr['id'])
         addr['action'] = 'delete'
 
 def _mergeAddrWithBuilding(soup, osmdb, buf=0):
