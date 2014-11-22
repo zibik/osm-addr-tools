@@ -66,12 +66,18 @@ def getInit(gmina_url):
         'maxx': init_data['spatialExtent'][2], 'maxy': init_data['spatialExtent'][3],
     }
 
-    address = list(
+    address_layers = list(
                 filter(
-                    lambda x: x['title'] == 'Adresy i ulice',
+                    lambda x: x['title'] and x['title'].upper() == 'ADRESY I ULICE',
                     init_data['map']['services']
                 )
-        )[0]['address']
+        )
+    if len(address_layers) == 0:
+        __log.warning('No information about address layer in init.php')
+        __log.debug(data)
+        raise ValueError("No address layer in iMPA for %s" % (gmina_url,))
+
+    address = address_layers[0]['address']
     
     return {
         'bbox': bbox,
