@@ -240,7 +240,7 @@ def _processOne(osmdb, entry):
                     _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
                     node['action'] = 'modify' # keep all duplicates in file
         # update address on all elements
-        if max(x[0] for x in existing) > 50:
+        if max(x[0] for x in existing) > 100:
             for node in existing:
                 __log.warning("Address (id=%s) %s is %d meters from imported point", node[1]['id'], entrystr(entry), node[0])
         return list(map(lambda x: _updateNode(x[1], entry), existing))    
