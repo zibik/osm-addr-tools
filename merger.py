@@ -225,7 +225,7 @@ def _processOne(osmdb, entry):
         # we have something with this address in db
         # sort by distance
         emuia_nodes = tuple(filter(lambda x: isEMUiAAddr(x) and onlyAddressNode(x), existing))
-        existing = sorted(map(lambda x: (distance(entry_point, getcenter(x)), x), existing))
+        existing = sorted(map(lambda x: (distance(entry_point, getcenter(x)), x), existing), key=lambda x: x[0])
 
         # update location of first node
         if emuia_nodes:
@@ -239,7 +239,7 @@ def _processOne(osmdb, entry):
 
         if max(x[0] for x in existing) > 100:
             for node in existing:
-                __log.warning("Address (id=%s) %s is %d meters from imported point", node[1]['id'], entrystr(entry), node[0])
+                __log.warning("Address (id=%s:%s) %s is %d meters from imported point", node[1].name, node[1]['id'], entrystr(entry), node[0])
 
         if len(existing) - len(emuia_nodes) > 1:
             # mark duplicates
@@ -253,7 +253,7 @@ def _processOne(osmdb, entry):
                     _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
                 node['action'] = 'modify' # keep all duplicates in file
         # update data only on first duplicate, rest - leave to OSM-ers
-        return [_updateNode(existing[0], entry)]
+        return [_updateNode(existing[0][1], entry)]
 
     # look for building nearby
     candidates = list(osmdb.nearest(entry_point, num_results=10))
@@ -278,7 +278,10 @@ def _processOne(osmdb, entry):
                     # take addr:street value from OSM instead of imported data
                     entry['addr:street'] = _getVal(c, 'addr:street')
                 else:
-                    __log.warning("Update not based on address but on location, but have the same address for: %s (id: %s)", entrystr(entry), c['id'])
+                    __log.warning("Update not based on address but on location, but have the same address for: %s (id: %s:%s)", 
+                            entrystr(entry), 
+                            c.name, 
+                            c['id'])
                 return [_updateNode(c, entry)]
             else:
                 if c.get('addr:city') == c.get('addr:place') and not(c.get('addr:street')) and _valEq(
@@ -324,11 +327,15 @@ def mergeAddr(node, addr):
         node.append(tag)
     # mark for deletion
     if int(addr['id']) < 0:
-        __log.info("Merging addr %s with building. Removing address node: %s", nodestr(addr), addr['id'])
+        __log.info("Merging addr %s with building. Removing address node: %s:%s", nodestr(node), addr.name, addr['id'])
+        __log.debug(addr)
+        __log.debug(node)
         addr.extract()
     else:
         # TODO - check if the addr node is used in ways - if so, remove addr tags
-        __log.info("Merging addr %s with building. Marking address node for deletion: %s", nodestr(addr), addr['id'])
+        __log.info("Merging addr %s with building. Marking address node for deletion: %s:%s", nodestr(node), addr.name, addr['id'])
+        __log.debug(node)
+        __log.debug(addr)
         addr['action'] = 'delete'
 
 def _mergeAddrWithBuilding(soup, osmdb, buf=0):
@@ -336,7 +343,7 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
     to_merge = {} # dictionary - building node_id -> list of address nodes
     for node in soup.find_all(lambda x: onlyAddressNode(x) and x.get('action')!='delete'):
         if _getVal(node, 'fixme'):
-            __log.info("Skipping merging node: %s, because of fixme: %s", node['id'], _getVal(node, 'fixme'))
+            __log.info("Skipping merging node: %s, because of fixme: %s:%s", node.name, node['id'], _getVal(node, 'fixme'))
         else:
             entry_point = tuple(map(float, (node['lat'], node['lon'])))
             candidates = list(osmdb.nearest(entry_point, num_results=10))
@@ -377,7 +384,7 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
             __log.debug("building: %s - leaving building and addresses unmerged", _id)
             for node in nodes:
                 if node.get('action') != 'delete':
-                    __log.debug("address: %s - marking as modified, just to be sure", node['id'])
+                    __log.debug("address: %s:%s - marking as modified, just to be sure", node.name, node['id'])
                     node['action'] = 'modify'
 
 def mergeAddrWithBuilding(soup):
