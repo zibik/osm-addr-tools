@@ -160,7 +160,7 @@ def _updateNode(node, entry):
     #ret |= _updateTag(node, 'teryt:simc', entry.get('teryt:simc'))
     if entry.get('fixme'):
         newfixme = _getVal(node, 'fixme')
-        fixme = entry['fixme'] + ' ' + newfixme if newfixme else ''
+        fixme = entry['fixme'] + ' ' + (newfixme if newfixme else '')
         ret |= _updateTag(node, 'fixme', fixme)
 
     if ret or isEMUiAAddr(node):
