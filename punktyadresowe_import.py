@@ -157,6 +157,9 @@ def analyzePoint(soup):
         (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(', 1)
         (city_name, city_id) = kv[str_normalize('Miejscowość(Id GUS)')].rsplit('(', 1)
 
+        if float(lon) < 14 or float(lon) > 25 or float(lat) < 49 or float(lat) > 56:
+            __log.warning("Point out of Polish borders: (%s, %s), %s, %s, %s", lat, lon, city_name, str_name, kv[str_normalize('Numer')])
+
         ret = {
             'location': {'lat': lat, 'lon': lon},
             'addr:housenumber': kv[str_normalize('Numer')],
