@@ -96,7 +96,7 @@ def _updateTag(node, key, val):
     """returns True if something was modified"""
     n = node.find('tag', k=key)
     if n:
-        if n['v'] == val:
+        if n['v'] == val.strip():
             return False
         n['v'] = val
     else:
