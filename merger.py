@@ -174,10 +174,14 @@ def _updateNode(node, entry):
     return node
 
 def onlyAddressNode(node):
+    # return true, if its a node, has a addr:housenumber,
+    # and consists only of tags listeb below
     if node.name != 'node':
         return False
     return _getVal(node, 'addr:housenumber') and all(map(
-        lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 'addr:city', 'addr:postcode', 'teryt:sym_ul', 'teryt:simc', 'source', 'source:addr'},
+        lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 
+                        'addr:city', 'addr:postcode', 'teryt:sym_ul', 
+                        'teryt:simc', 'source', 'source:addr', 'fixme'},
         (x['k'] for x in node.find_all('tag'))
         )
     )
@@ -324,46 +328,48 @@ def _processOne(osmdb, entry):
 
 def mergeAddr(node, addr):
     for tag in addr.find_all('tag'):
+        # note: this moves tags from one object to another 
         node.append(tag)
     # mark for deletion
     if int(addr['id']) < 0:
         __log.info("Merging addr %s with building. Removing address node: %s:%s", nodestr(node), addr.name, addr['id'])
-        __log.debug(addr)
-        __log.debug(node)
+        addr['action'] = 'delete'
         addr.extract()
     else:
         # TODO - check if the addr node is used in ways - if so, remove addr tags
         __log.info("Merging addr %s with building. Marking address node for deletion: %s:%s", nodestr(node), addr.name, addr['id'])
-        __log.debug(node)
-        __log.debug(addr)
         addr['action'] = 'delete'
+    __log.debug(node)
+    __log.debug(addr)
 
 def _mergeAddrWithBuilding(soup, osmdb, buf=0):
     __log.info("Merging buildings with buffer: %s", buf)
     to_merge = {} # dictionary - building node_id -> list of address nodes
     for node in soup.find_all(lambda x: onlyAddressNode(x) and x.get('action')!='delete'):
-        if _getVal(node, 'fixme'):
-            __log.info("Skipping merging node: %s, because of fixme: %s:%s", node.name, node['id'], _getVal(node, 'fixme'))
-        else:
-            entry_point = tuple(map(float, (node['lat'], node['lon'])))
-            candidates = list(osmdb.nearest(entry_point, num_results=10))
-            # first look for relations and if this fails check for ways
-            candidates_within = list(filter(lambda x: x.name == 'relation' and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
-            if not candidates_within:
-                candidates_within = list(filter(lambda x: x.name == 'way' and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
-            if candidates_within:
-                c = candidates_within[0]
-                key = "%s:%s" % (c.name, c['id'])
-                if not c('tag', k='addr:housenumber') and not c('tag', k='fixme'):
-                    # only merge with buildings without address and without fixmes
-                    try:
-                        lst = to_merge[key]
-                    except KeyError:
-                        lst = []
-                        to_merge[key] = lst
-                    lst.append(node)
+        entry_point = tuple(map(float, (node['lat'], node['lon'])))
+        candidates = list(osmdb.nearest(entry_point, num_results=10))
+        # first look for relations and if this fails check for ways
+        candidates_within = list(filter(lambda x: x.name == 'relation' and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
+        if not candidates_within:
+            candidates_within = list(filter(lambda x: x.name == 'way' and Point(entry_point).within(buffer(osmdb.getShape(x),buf)), candidates))
+        if candidates_within:
+            c = candidates_within[0]
+            key = "%s:%s" % (c.name, c['id'])
+            if _getVal(c, 'addr:housenumber'):
+                # address is within building, that alread has an address
+                # mark building, so human may choose
+                if not c.get('action'):
+                    __log.info("Marking building (%s:%s) as modified, because address %s is within", c.name, c['id'], nodestr(node))
+                    c['action'] = 'modify'
+            if not c('tag', k='addr:housenumber') and not c('tag', k='fixme'):
+                # only merge with buildings without address and without fixmes
+                try:
+                    lst = to_merge[key]
+                except KeyError:
+                    lst = []
+                    to_merge[key] = lst
+                lst.append(node)
 
-    # do the merge, when only one candidate exists
     buildings = dict(
         ("%s:%s" % (x.name, x['id']), x) for x in soup.find_all(['way', 'relation'])
     )
@@ -377,9 +383,13 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
                 for way in map(buildings.get, ("%s:%s" % (x['type'], x['ref']) for x in c.find_all('member'))):
                     if way.get('action') != 'delete':
                         way['action'] = 'modify'
+        # do the merge, when only one candidate exists
         if len(nodes) == 1:
-            __log.debug("building: %s - merging with address", _id)
-            mergeAddr(c, nodes[0])
+            if _getVal(node, 'fixme'):
+                __log.info("Skipping merging node: %s, because of fixme: %s:%s", node.name, node['id'], _getVal(node, 'fixme'))
+            else:
+                __log.debug("building: %s - merging with address", _id)
+                mergeAddr(c, nodes[0])
         if len(nodes) > 1: # ensure, that all nodes will be visible for manual addr merging
             __log.debug("building: %s - leaving building and addresses unmerged", _id)
             for node in nodes:
@@ -440,6 +450,10 @@ def mergeInc(asis, impdata, logIO=None):
     new_nodes = [item for sublist in new_nodes for item in sublist]
 
     new_nodes.extend(removeNotexitingAddresses(asis, impdata))
+    # add all new objects to asis, so merge'ing will take them into account
+    for i in filter(lambda x: float(x['id']) < 0, new_nodes):
+        asis.osm.append(i)
+
     mergeAddrWithBuilding(asis)
 
     ret = getEmptyOsm(asis.meta)
@@ -468,13 +482,15 @@ def mergeFull(asis, impdata, logIO=None):
     new_nodes = [item for sublist in new_nodes for item in sublist]
 
     new_nodes.extend(removeNotexitingAddresses(asis, impdata))
+    # add all new objects to asis, so merge'ing will take them into account
+    for i in filter(lambda x: float(x['id']) < 0, new_nodes):
+        asis.osm.append(i)
+
     mergeAddrWithBuilding(asis)
 
     ret = asis
     for i in filter(lambda x: x.get('action') == 'modify', asis.find_all(['node', 'way', 'relation'])):
         _updateTag(i, 'import:action', 'modify')
-    for i in filter(lambda x: float(x['id']) < 0, new_nodes):
-        asis.osm.append(i)
     asis.osm.note.string = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.\n"
     if logIO:
         asis.osm.note.string += logIO.getvalue()
