@@ -375,21 +375,24 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
     )
     __log.info("Merging %d addresses with buildings", len(tuple(filter(lambda x: len(x[1]) == 1, to_merge.items()))))
     for (_id, nodes) in to_merge.items():
-        c = buildings[_id]
+        building = buildings[_id]
         if len(nodes) > 0:
             __log.debug("building: %s - marking as modified", _id)
-            c['action'] = 'modify' # all buildings mark as modify, so they will be visible in changeset as candidates or merging
-            if c.name == 'relation':
-                for way in map(buildings.get, ("%s:%s" % (x['type'], x['ref']) for x in c.find_all('member'))):
+            building['action'] = 'modify' # all buildings mark as modify, so they will be visible in changeset as candidates or merging
+            if building.name == 'relation':
+                for way in map(buildings.get, ("%s:%s" % (x['type'], x['ref']) for x in building.find_all('member'))):
                     if way.get('action') != 'delete':
                         way['action'] = 'modify'
         # do the merge, when only one candidate exists
         if len(nodes) == 1:
-            if _getVal(node, 'fixme'):
-                __log.info("Skipping merging node: %s, because of fixme: %s:%s", node.name, node['id'], _getVal(node, 'fixme'))
+            if _getVal(building, 'addr:housenumber'):
+                # candidate building has already an address
+                __log.info("Skipping merging address: %s, as building already has an address: %s.", nodestr(building), nodestr(nodes[0]))
+            elif _getVal(nodes[0], 'fixme'):
+                __log.info("Skipping merging node: %s, because of fixme: %s:%s", nodes[0].name, nodes[0]['id'], _getVal(nodes[0], 'fixme'))
             else:
                 __log.debug("building: %s - merging with address", _id)
-                mergeAddr(c, nodes[0])
+                mergeAddr(building, nodes[0])
         if len(nodes) > 1: # ensure, that all nodes will be visible for manual addr merging
             __log.debug("building: %s - leaving building and addresses unmerged", _id)
             for node in nodes:
