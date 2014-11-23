@@ -521,12 +521,27 @@ import utils
 __DB_OSM_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'osm_teryt_symul.db')
 __DB_OSM_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'osm_teryt_simc.db')
 __DB_TERYT_ULIC = os.path.join(tempfile.gettempdir(), 'teryt_ulic.db')
-__mapping_symul = storedDict(lambda: getDict('teryt:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL)
-__mapping_simc = storedDict(lambda: getDict('teryt:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC)
-__teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
+__mapping_symul = {}
+__mapping_simc = {}
+__teryt_ulic = {}
 __printed = set()
 
+import threading
+__init_lock = threading.Lock()
+__is_initialized = False
+
+def __init():
+    global __is_initialized, __init_lock, __mapping_symul, __mapping_simc, __teryt_ulic
+    if not __is_initialized:
+        with __init_lock:
+            if not __is_initialized:
+                __mapping_symul = storedDict(lambda: getDict('teryt:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL)
+                __mapping_simc = storedDict(lambda: getDict('teryt:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC)
+                __teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
+                __is_initialized = True
+
 def mapstreet(strname, symul):
+    __init()
     try:
         ret = addr_map[strname]
         #print("mapping %s -> %s" % (strname, ret))
@@ -542,6 +557,7 @@ def mapstreet(strname, symul):
             return strname
 
 def mapcity(cityname, simc):
+    __init()
     try:
         ret = __mapping_simc[simc]
         if ret != cityname and ret not in __printed:
@@ -552,10 +568,9 @@ def mapcity(cityname, simc):
         return cityname
 
 def main():
-    dct = fetchData()
-    dct = dict(filter(lambda x: len(x[1])>1, dct.items()))
-    for k, v in sorted(dct.items(), key=lambda x: len(x[1])):
-        print("%s -> %s" % (k, v))
-       
+      logging.basicConfig(level=10)
+      print(mapstreet('Głowackiego', 'x'))
+      print(mapcity('Kostrzyń', 'x'))
+
 if __name__ == '__main__':
     main()
