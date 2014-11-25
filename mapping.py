@@ -489,6 +489,7 @@ def getDict(keyname, valuename, coexitingtags=None):
                 ret[symul] = entry
             try:
                 entry[street] += 1
+                __log.info("More than one entry of street: %s. ID: %s:%s", street, tag.name, tag['id'])
             except KeyError:
                 entry[street] = 1
     ret = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, ret.items()))
