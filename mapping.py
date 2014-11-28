@@ -62,6 +62,7 @@ addr_map = {
  'Chopina Fryderyka': 'Fryderyka Chopina',
  'Chopina': 'Fryderyka Chopina',
  'Chrobrego B.': 'Bolesława Chrobrego',
+ 'B. Chrobrego': 'Bolesława Chrobrego',
  'Chrobrego': 'Bolesława Chrobrego',
  'Chrzanowskiego Ignacego': 'Ignacego Chrzanowskiego',
  'Cieślaka W.': 'Cieślaka W.',
@@ -578,7 +579,7 @@ def mapstreet(strname, symul):
     __init()
     teryt_entry = __teryt_ulic.get(symul)
     def checkAndAddCecha(street):
-        if teryt_entry.cecha:
+        if teryt_entry and teryt_entry.cecha:
             if not street.upper().startswith(teryt_entry.cecha.upper()):
                 __log.debug("Adding TERYT.CECHA=%s to street=%s (teryt:sym_ul=%s)" % (teryt_entry.cecha, street, symul))
                 return "%s %s" % (teryt_entry.cecha, street)
