@@ -452,8 +452,12 @@ import time
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
+from itertools import groupby
+from collections import namedtuple
 
 __log = logging.getLogger(__name__)
+
+TerytUlicEntry = namedtuple('TerytUlicEntry', ['sym_ul', 'nazwa', 'cecha'])
 
 def downloadULIC():
     __log.info("Updating ULIC data from TERYT, it may take a while")
@@ -465,10 +469,38 @@ def downloadULIC():
         if col.text:
             return col.text
         return ""
+    __CECHA_MAPPING = {
+        'UL.': None,
+        'AL.': 'Aleja',
+        'PL.': 'Plac',
+        'SKWER': 'Skwer',
+        'BULW.': 'Bulwar',
+        'RONDO': 'Rondo',
+        'PARK': 'Park',
+        'RYNEK': 'Rynek',
+        'SZOSA': 'Szosa',
+        'DROGA': 'Droga',
+        'OS.': 'Osiedle',
+        'OGRÓD': 'Ogród',
+        'WYB.': 'Wybrzeże',
+        'INNE': None
+    }
+
     tree = ET.fromstring(dictionary_zip.read("ULIC.xml"))
-    ret = dict((get(row, "SYM_UL"), 
-                    " ".join((get(row, 'NAZWA_2'), get(row,'NAZWA_1')))
-               ) for row in tree.find('catalog').iter('row'))
+    data = tuple(TerytUlicEntry(
+                get(row, "SYM_UL"), 
+                " ".join((get(row, 'NAZWA_2'), get(row,'NAZWA_1'))),
+                __CECHA_MAPPING.get(get(row, "CECHA").upper())
+            ) for row in tree.find('catalog').iter('row'))
+    
+    # sanity check
+    for tentry, duplist in groupby(data, lambda x: x.sym_ul):
+        if len(set(duplist)) > 1:
+            __log.info("Duplicate entry in TERYT for symul: %s, values: %s", tentry.sym_ul, ", ".join(duplist))
+
+    ret = dict((x.sym_ul, x) for x in data)
+
+    __log.info("Entries in TERYT ULIC: %d", len(ret))
     return ret
 
 def getDict(keyname, valuename, coexitingtags=None):
@@ -489,10 +521,12 @@ def getDict(keyname, valuename, coexitingtags=None):
                 ret[symul] = entry
             try:
                 entry[street] += 1
-                __log.info("More than one entry of street: %s. ID: %s:%s", street, tag.name, tag['id'])
             except KeyError:
                 entry[street] = 1
-    ret = dict((x[0], max(x[1].items(), key=lambda z: z[1])[0]) for x in filter(lambda x: len(x[1])==1, ret.items()))
+    # ret = dict(symul, dict(street, count))
+    inconsistent = dict((x[0], x[1].keys()) for x in filter(lambda x: len(x[1]) > 1, ret.items()))
+    for (symul, streetlst) in inconsistent.items():
+        __log.info("Inconsitent mapping for teryt:sym_ul = %s, values: %s", symul, ", ".join(streetlst))
     return ret
 
 def storedDict(fetcher, filename):
@@ -518,10 +552,9 @@ def storedDict(fetcher, filename):
 
 import utils
 
-# TODO: Do these on first access to mapping functions
-__DB_OSM_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'osm_teryt_symul.db')
-__DB_OSM_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'osm_teryt_simc.db')
-__DB_TERYT_ULIC = os.path.join(tempfile.gettempdir(), 'teryt_ulic.db')
+__DB_OSM_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'osm_teryt_symul_v2.db')
+__DB_OSM_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'osm_teryt_simc_v2.db')
+__DB_TERYT_ULIC = os.path.join(tempfile.gettempdir(), 'teryt_ulic_v3.db')
 __mapping_symul = {}
 __mapping_simc = {}
 __teryt_ulic = {}
@@ -543,27 +576,45 @@ def __init():
 
 def mapstreet(strname, symul):
     __init()
+    teryt_entry = __teryt_ulic.get(symul)
+    def checkAndAddCecha(street):
+        if teryt_entry.cecha:
+            if not street.upper().startswith(teryt_entry.cecha.upper()):
+                __log.debug("Adding TERYT.CECHA=%s to street=%s (teryt:sym_ul=%s)" % (teryt_entry.cecha, street, symul))
+                return "%s %s" % (teryt_entry.cecha, street)
+        return street
+
     try:
-        ret = addr_map[strname]
-        #print("mapping %s -> %s" % (strname, ret))
+        ret = checkAndAddCecha(addr_map[strname])
+        __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa, symul))
         return ret
     except KeyError:
         try:
+            print_key = "symul:%s" % (symul,)
             ret = __mapping_symul[symul]
-            if ret != strname and ret not in __printed:
-                __log.info("mapping street %s -> %s, TERYT NAZWA_2 + NAZWA_1: %s (teryt:sym_ul=%s) " % (strname, ret, __teryt_ulic[symul], symul))
-                __printed.add(ret)
+            if len(ret) > 1 and print_key not in __printed:
+                __log.info("Inconsitent mapping for teryt:sym_ul = %s. Original value: %s, TERYT: %s, OSM values: %s. Leaving original value.", symul, strname, __teryt_ulic.get(symul).nazwa,  ", ".join(ret))
+                return strname
+            ret = checkAndAddCecha(ret[0])
+            if ret != strname and print_key not in __printed:
+                __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, __teryt_ulic.get(symul).nazwa, symul))
+                __printed.add(print_key)
             return ret
         except KeyError:
-            return strname
+            return checkAndAddCecha(strname)
 
 def mapcity(cityname, simc):
     __init()
     try:
+        print_key = "simc:%s" % (simc,)
         ret = __mapping_simc[simc]
-        if ret != cityname and ret not in __printed:
+        if len(ret) > 1 and print_key not in __printed:
+            __log.info("Inconsitent mapping for teryt:simc = %s. Original value: %s, OSM values: %s. Leaving original value.", simc, cityname, ", ".join(ret))
+            return cityname
+        ret = ret[0]
+        if ret != cityname and print_key not in __printed:
             __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret, simc))
-            __printed.add(ret)
+            __printed.add(print_key)
         return ret
     except KeyError:
         return cityname
