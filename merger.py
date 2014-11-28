@@ -75,7 +75,7 @@ def buffer(shp, meters=0):
 def _getAddr(dct):
     if dct.get('addr:street'):
         return (
-            dct['addr:city'],
+            dct.get('addr:city'),
             dct['addr:street'],
             dct['addr:housenumber'])
     else:
@@ -243,13 +243,19 @@ def _processOne(osmdb, entry):
     entry_point = tuple(map(float, (entry['location']['lat'], entry['location']['lon'])))
     
     # look for near same address
-    node = next(filter(lambda x: similarAddress(entry, x), (osmdb.nearest(entry_point, num_results=10))))
-    if node and _getVal(node, 'addr:street') and _getVal(node, 'addr:street') != entry.get('addr:street'):
-        # there is some similar address nearby but with different street name
-        __log.warning("Changing street name from %s in import to %s as in OSM (%s:%s), distance=%.2fm", 
-                entry.get('addr:street'), _getVal(node,'addr:street'), distance(entry_point, getcenter(node)))
-        # update street name based on OSM data
-        entry['addr:street'] = _getVal(node[1], 'addr:street')
+    try:
+        node = next(filter(lambda x: similarAddress(entry, x), (osmdb.nearest(entry_point, num_results=10))))
+        how_far = distance(entry_point, getcenter(node))
+        if node and _getVal(node, 'addr:street') and entry.get('addr:street') and \
+            _getVal(node, 'addr:street') != entry.get('addr:street') and \
+            ((node.name == 'node' and how_far < 5.0) or (node.name == 'way' and how_far < 10.0)):
+            # there is some similar address nearby but with different street name
+            __log.warning("Changing street name from %s in import to %s as in OSM (%s:%s), distance=%.2fm", 
+                    entry.get('addr:street'), _getVal(node,'addr:street'), 
+                    node.name, node['id'], how_far)
+            # update street name based on OSM data
+            entry['addr:street'] = _getVal(node, 'addr:street')
+    except StopIteration: pass
 
     existing = osmdb.getbyaddress(_getAddr(entry))
     if existing:
@@ -486,7 +492,7 @@ def getEmptyOsm(meta):
 def mergeInc(asis, impdata, logIO=None):
     asis = BeautifulSoup(asis, "xml")
     osmdb = OsmDb(asis, keyfunc=str.upper)
-    new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
+    new_nodes = map(lambda x: _processOne(osmdb, x), impdata)
     new_nodes = [item for sublist in new_nodes for item in sublist]
 
     new_nodes.extend(removeNotexistingAddresses(asis, impdata))
@@ -554,8 +560,13 @@ def main():
     parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
 
     args = parser.parse_args()
+
+    log_stderr = logging.StreamHandler()
+    log_stderr.setLevel(args.log_level)
+
     logIO = io.StringIO()
-    logging.basicConfig(level=args.log_level, handlers=[logging.StreamHandler(sys.stderr), logging.StreamHandler(logIO)])
+
+    logging.basicConfig(level=10, handlers=[log_stderr, logging.StreamHandler(logIO)])
 
     if args.impa:
         imp = iMPA(args.impa)
@@ -577,6 +588,7 @@ def main():
 
     if len(data) < 1:
         __log.warning("Warning - import data is empty. Check your import")
+    __log.info('Processing %d addresses', len(data))
 
     if 'node' not in addr:
         __log.warning("Warning - address data is empty. Check your file/terc code")
