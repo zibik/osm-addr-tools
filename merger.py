@@ -426,8 +426,6 @@ def _mergeAddrWithBuilding(soup, osmdb, buf=0):
             if _getVal(building, 'addr:housenumber'):
                 # candidate building has already an address
                 __log.info("Skipping merging address: %s, as building already has an address: %s.", nodestr(building), nodestr(nodes[0]))
-            elif _getVal(nodes[0], 'fixme'):
-                __log.info("Skipping merging node: %s, because of fixme: %s:%s", nodes[0].name, nodes[0]['id'], _getVal(nodes[0], 'fixme'))
             else:
                 __log.debug("building: %s - merging with address", _id)
                 mergeAddr(building, nodes[0])
