@@ -215,6 +215,24 @@ def nodestr(node):
                             _getVal(node, 'addr:street') if _getVal(node, 'addr:street') else _getVal(node, 'addr:place'), 
                             _getVal(node, 'addr:housenumber'))
 
+def similarAddress(entry, node):
+    ret = True
+    hnumber = _getVal(node, 'addr:housenumber')
+    if hnumber:
+        ret &= (hnumber.upper().replace(' ', '') == entry.get('addr:housenumber').upper().replace(' ', ''))
+    else:
+        # if no address - it's not similar
+        return False
+    if _valEq(node, 'teryt:simc', entry.get('teryt:simc')):
+        ret &= True
+    else:
+        # check by name
+        ret &= _valEq(node, 'addr:city', entry.get('addr:city'))
+        ret &= _valEq(node, 'addr:place', entry.get('addr:place'))
+    ret &= _valEq(node, 'teryt:sym_ul', entry.get('teryt:sym_ul'))
+    # skip comparing street names, might be a bit different
+    return ret
+
 def _processOne(osmdb, entry):
     """process one entry (of type dict) and work with OsmDb instance to find addresses to merge
 
@@ -224,6 +242,15 @@ def _processOne(osmdb, entry):
 
     entry_point = tuple(map(float, (entry['location']['lat'], entry['location']['lon'])))
     
+    # look for near same address
+    node = next(filter(lambda x: similarAddress(entry, x), (osmdb.nearest(entry_point, num_results=10))))
+    if node and _getVal(node, 'addr:street') and _getVal(node, 'addr:street') != entry.get('addr:street'):
+        # there is some similar address nearby but with different street name
+        __log.warning("Changing street name from %s in import to %s as in OSM (%s:%s), distance=%.2fm", 
+                entry.get('addr:street'), _getVal(node,'addr:street'), distance(entry_point, getcenter(node)))
+        # update street name based on OSM data
+        entry['addr:street'] = _getVal(node[1], 'addr:street')
+
     existing = osmdb.getbyaddress(_getAddr(entry))
     if existing:
         # we have something with this address in db
@@ -280,6 +307,9 @@ def _processOne(osmdb, entry):
                     c, 'addr:housenumber', entry.get('addr:housenumber')):
                 if not _valEq(c, 'addr:street', entry.get('addr:street')):
                     # take addr:street value from OSM instead of imported data
+                    __log.info("Mapping street %s -> %s based on OSM candidate. Full address: %s", 
+                        entry['addr:street'], _getVal(c, 'addr:street'), entrystr(entry))
+
                     entry['addr:street'] = _getVal(c, 'addr:street')
                 else:
                     __log.warning("Update not based on address but on location, but have the same address for: %s (id: %s:%s)", 
@@ -297,7 +327,7 @@ def _processOne(osmdb, entry):
                     return [_updateNode(c, entry)]
 
                 # address within a building that has different address, add a point, maybe building needs spliting
-                __log.debug("Adding new node within building with address")
+                __log.debug("Adding new node within building with address: %s", entrystr(entry))
                 return [_createPoint(entry)]
     # no address existing, no candidates within buildings, check closest one
     #c = candidates[0]
@@ -322,7 +352,9 @@ def _processOne(osmdb, entry):
             ret = [_createPoint(entry)]
             _updateTag(ret[0], 'fixme', 'Check for nearby EMUiA address that might be obsolete')
             return ret
-        __log.info("Found probably same address node at (%s, %s). Skipping. Address is: %s", entry['location']['lon'], entry['location']['lat'], entrystr(entry))
+        __log.info("Found probably same address node at (%s, %s). Skipping. Import address is: %s, osm addresses: ", 
+            entry['location']['lon'], entry['location']['lat'], entrystr(entry),
+            ", ".join(map(nodestr, candidates_same)))
         return []
     return [_createPoint(entry)]
 
@@ -407,31 +439,36 @@ def mergeAddrWithBuilding(soup):
     _mergeAddrWithBuilding(soup, osmdb, 5)
     _mergeAddrWithBuilding(soup, osmdb, 10)
 
-def removeNotexitingAddresses(asis, impdata):
-    imp_addr = set(map(lambda x: tuple(map(lambda x: str.upper(x) if x else x, _getAddr(x))), impdata))
+def removeNotexistingAddresses(asis, impdata):
+    # list of all addresses imported in uppercase
+    imp_addr = set(map(
+            lambda x: tuple(map(
+                lambda x: str.upper(x) if x else x,
+                _getAddr(x))), 
+            impdata))
     osmdb = OsmDb(asis, keyfunc=str.upper)
     ret = []
+    # from all addresses in OsmDb remove those imported
     for addr in (set(osmdb.getalladdresses()) - imp_addr):
-        entries = osmdb.getbyaddress(addr)
-        for entry in entries:
-            ret.append(entry)
-            fixme = _getVal(entry, 'fixme')
+        for node in osmdb.getbyaddress(addr):
+            ret.append(node)
+            fixme = _getVal(node, 'fixme')
             if not fixme:
                 fixme = ""
-            if isEMUiAAddr(entry):
-                if onlyAddressNode(entry):
-                    __log.debug("Marking entry to delete: %s", entry)
-                    _updateTag(entry, 'fixme', 'Delete this node with address. Comes from obsolete EMUiA import, now doesn''t exist. ' +fixme)
+            if isEMUiAAddr(node):
+                if onlyAddressNode(node):
+                    __log.debug("Marking node to delete: %s:%s, %s", node.name, node['id'], nodestr(node))
+                    _updateTag(node, 'fixme', 'Delete this node with address. Comes from obsolete EMUiA import, now doesn''t exist. ' +fixme)
                 else:
-                    __log.debug("Marking entry to delete: %s", entry)
-                    _updateTag(entry, 'fixme', 'Delete addr fields from this node. Comes from obsolete EMUiA import, now doesn''t exit. ' +fixme)
-                if entry.get('action') != 'delete':
-                    entry['action'] = 'modify'
+                    __log.debug("Marking node to delete: %s:%s, %s", node.name, node['id'], nodestr(node))
+                    _updateTag(node, 'fixme', 'Delete addr fields from this node. Comes from obsolete EMUiA import, now doesn''t exit. ' +fixme)
+                if node.get('action') != 'delete':
+                    node['action'] = 'modify'
             else:
-                __log.warning("iMPA doesn't contain address present in OSM. Marking with fixme=Check existance")
-                _updateTag(entry, 'fixme', 'Check existance. ' +fixme)
-                if entry.get('action') != 'delete':
-                    entry['action'] = 'modify'
+                __log.warning("iMPA doesn't contain address %s from OSM. Marking with fixme=Check existance", nodestr(node))
+                _updateTag(node, 'fixme', 'Check existance. ' +fixme)
+                if node.get('action') != 'delete':
+                    node['action'] = 'modify'
     return ret
             
 
@@ -452,7 +489,7 @@ def mergeInc(asis, impdata, logIO=None):
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
 
-    new_nodes.extend(removeNotexitingAddresses(asis, impdata))
+    new_nodes.extend(removeNotexistingAddresses(asis, impdata))
     # add all new objects to asis, so merge'ing will take them into account
     for i in filter(lambda x: float(x['id']) < 0, new_nodes):
         asis.osm.append(i)
@@ -484,7 +521,7 @@ def mergeFull(asis, impdata, logIO=None):
     new_nodes = list(map(lambda x: _processOne(osmdb, x), impdata))
     new_nodes = [item for sublist in new_nodes for item in sublist]
 
-    new_nodes.extend(removeNotexitingAddresses(asis, impdata))
+    new_nodes.extend(removeNotexistingAddresses(asis, impdata))
     # add all new objects to asis, so merge'ing will take them into account
     for i in filter(lambda x: float(x['id']) < 0, new_nodes):
         asis.osm.append(i)
