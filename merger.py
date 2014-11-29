@@ -22,6 +22,7 @@ __log = logging.getLogger(__name__)
 # apt-get install python3-pyproj libspatialindex-dev python3-shapely python3-bs4 python3-lxml 
 # easy_install3 Rtree
 
+# TODO: import admin_level=8 for area, and add addr:city if missing for addresses within that area (needs greater refactoring)
 __geod = pyproj.Geod(ellps="WGS84")
 
 def getAddresses(terc):
@@ -275,20 +276,22 @@ def _processOne(osmdb, entry):
                 node['action'] = 'delete'
 
         if max(x[0] for x in existing) > 100:
-            for node in existing:
-                __log.warning("Address (id=%s:%s) %s is %d meters from imported point", node[1].name, node[1]['id'], entrystr(entry), node[0])
+            for (dist, node) in existing:
+                if dist > 100:
+                    __log.warning("Address (id=%s:%s) %s is %d meters from imported point", node.name, node['id'], entrystr(entry), dist)
+                    _updateTag(node, 'fixme', "Node is %d meters away from imported point"  % dist)
+                node['action'] = 'modify'
+            if min(x[0] for x in existing) > 50:
+                ret = [_createPoint(entry)]
+                ret.extend(x[1] for x in existing)
+                return ret
 
         if len(existing) - len(emuia_nodes) > 1:
-            # mark duplicates
-            __log.warning("More than one address node for %s. Marking duplicates. %s", 
+            # report duplicates
+            __log.warning("More than one address node for %s. %s",
                             entrystr(entry), 
                             ", ".join("Id: %s:%s, dist: %sm" % (x[1].name, x[1]['id'], str(x[0])) for x in existing)
                          )
-            for (n, (dist, node)) in enumerate(existing):
-                if n > 0:
-                    # skip closest one
-                    _updateTag(node,'fixme', 'Duplicate node %s, distance: %s' % (n+1, dist))
-                node['action'] = 'modify' # keep all duplicates in file
         # update data only on first duplicate, rest - leave to OSM-ers
         return [_updateNode(existing[0][1], entry)]
 
@@ -358,7 +361,7 @@ def _processOne(osmdb, entry):
             ret = [_createPoint(entry)]
             _updateTag(ret[0], 'fixme', 'Check for nearby EMUiA address that might be obsolete')
             return ret
-        __log.info("Found probably same address node at (%s, %s). Skipping. Import address is: %s, osm addresses: ", 
+        __log.info("Found probably same address node at (%s, %s). Skipping. Import address is: %s, osm addresses: %s", 
             entry['location']['lon'], entry['location']['lat'], entrystr(entry),
             ", ".join(map(nodestr, candidates_same)))
         return []
