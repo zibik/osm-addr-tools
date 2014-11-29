@@ -460,17 +460,7 @@ __log = logging.getLogger(__name__)
 
 TerytUlicEntry = namedtuple('TerytUlicEntry', ['sym_ul', 'nazwa', 'cecha'])
 
-def downloadULIC():
-    __log.info("Updating ULIC data from TERYT, it may take a while")
-    soup = BeautifulSoup(urlopen("http://www.stat.gov.pl/broker/access/prefile/listPreFiles.jspa"))
-    fileLocation = soup.find('td', text="Katalog ulic").parent.find_all('a')[1]['href']
-    dictionary_zip = zipfile.ZipFile(io.BytesIO(urlopen("http://www.stat.gov.pl/broker/access/prefile/" + fileLocation).read()))
-    def get(elem, tag):
-        col = elem.find("col[@name='%s']" % tag)
-        if col.text:
-            return col.text
-        return ""
-    __CECHA_MAPPING = {
+__CECHA_MAPPING = {
         'UL.': None,
         'AL.': 'Aleja',
         'PL.': 'Plac',
@@ -487,11 +477,22 @@ def downloadULIC():
         'INNE': None
     }
 
+def downloadULIC():
+    __log.info("Updating ULIC data from TERYT, it may take a while")
+    soup = BeautifulSoup(urlopen("http://www.stat.gov.pl/broker/access/prefile/listPreFiles.jspa"))
+    fileLocation = soup.find('td', text="Katalog ulic").parent.find_all('a')[1]['href']
+    dictionary_zip = zipfile.ZipFile(io.BytesIO(urlopen("http://www.stat.gov.pl/broker/access/prefile/" + fileLocation).read()))
+    def get(elem, tag):
+        col = elem.find("col[@name='%s']" % tag)
+        if col.text:
+            return col.text
+        return ""
+
     tree = ET.fromstring(dictionary_zip.read("ULIC.xml"))
     data = tuple(TerytUlicEntry(
                 get(row, "SYM_UL"), 
                 " ".join((get(row, 'NAZWA_2'), get(row,'NAZWA_1'))),
-                __CECHA_MAPPING.get(get(row, "CECHA").upper())
+                get(row, "CECHA").upper()
             ) for row in tree.find('catalog').iter('row'))
     
     # sanity check
@@ -580,9 +581,10 @@ def mapstreet(strname, symul):
     teryt_entry = __teryt_ulic.get(symul)
     def checkAndAddCecha(street):
         if teryt_entry and teryt_entry.cecha:
-            if not street.upper().startswith(teryt_entry.cecha.upper()):
-                __log.debug("Adding TERYT.CECHA=%s to street=%s (teryt:sym_ul=%s)" % (teryt_entry.cecha, street, symul))
-                return "%s %s" % (teryt_entry.cecha, street)
+            if not street.upper().startswith(teryt_entry.cecha.upper()) and \
+                not street.upper().startswith(__CECHA_MAPPING.get(teryt_entry.cecha, '').upper()):
+                __log.debug("Adding TERYT.CECHA=%s to street=%s (teryt:sym_ul=%s)" % (__CECHA_MAPPING.get(teryt_entry.cecha, ''), street, symul))
+                return "%s %s" % (__CECHA_MAPPING.get(teryt_entry.cecha, ''), street)
         return street
 
     try:
