@@ -559,6 +559,8 @@ def main():
     parser.add_argument('--output', type=argparse.FileType('w+', encoding='UTF-8'), help='output file with merged data (default: result.osm)', default='result.osm')
     parser.add_argument('--full', help='Use to output all address data for region, not only modified address data as per default', action='store_const', const=True, dest='full_mode', default=False)
     parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
+    parser.add_argument('--import-wms', help='WMS address for address layer, ex: ' +
+        'http://www.punktyadresowe.pl/cgi-bin/mapserv?map=/home/www/impa2/wms/luban.map . Bounding box is still fetched via iMPA', dest='wms')
 
     args = parser.parse_args()
 
@@ -570,7 +572,7 @@ def main():
     logging.basicConfig(level=10, handlers=[log_stderr, logging.StreamHandler(logIO)])
 
     if args.impa:
-        imp = iMPA(args.impa)
+        imp = iMPA(args.impa, wms=args.wms)
         terc = imp.getConf()['terc']
         dataFunc = lambda: imp.fetchTiles()
 

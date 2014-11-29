@@ -32,6 +32,7 @@ import json
 from bs4 import BeautifulSoup
 from mapping import mapstreet, mapcity
 from utils import parallel_execution
+from functools import partial
 
 
 # stałe
@@ -66,6 +67,14 @@ def getInit(gmina_url):
         'maxx': init_data['spatialExtent'][2], 'maxy': init_data['spatialExtent'][3],
     }
 
+
+
+    ret = {
+        'bbox': bbox,
+        'terc': init_data['teryt'],
+        'srs': 'EPSG:2180',
+    }
+
     address_layers = list(
                 filter(
                     lambda x: x['title'] and x['title'].upper() == 'ADRESY I ULICE',
@@ -75,34 +84,30 @@ def getInit(gmina_url):
     if len(address_layers) == 0:
         __log.warning('No information about address layer in init.php')
         __log.debug(data)
-        raise ValueError("No address layer in iMPA for %s" % (gmina_url,))
+    else:
+        ret['wms_addr'] = address_layers[0]['address']
+    return ret
 
-    address = address_layers[0]['address']
-    
-    return {
-        'bbox': bbox,
-        'wms_addr': address,
-        'terc': init_data['teryt'],
-    }
 
-def fetchTiles(wms_addr, bbox):
+def fetchTiles(wms_addr, bbox, srs):
     return analyzePoints(
                 fetchPoint(
                     wms_addr, 
                     bbox['minx'], bbox['miny'], bbox['maxx'], bbox['maxy'], 
-                    0, 0)) # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
+                    0, 0,
+                    srs)) # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
                         
 
-def fetchPoint(wms_addr, w, s, e, n, pointx, pointy):
+def fetchPoint(wms_addr, w, s, e, n, pointx, pointy, srs="EPSG:2180", layer="punkty"):
     params = {
         'VERSION': '1.1.1',
         'SERVICE': 'WMS',
         'REQUEST': 'GetFeatureInfo',
-        'LAYERS': 'punkty', # było: ulice,punkty
-        'QUERY_LAYERS': 'punkty', # było: ulice, punkty
+        'LAYERS': layer, # było: ulice,punkty
+        'QUERY_LAYERS': layer, # było: ulice, punkty
         'FORMAT': 'image/png',
         'INFO_FORMAT': 'text/html',
-        'SRS': 'EPSG:2180',
+        'SRS': srs,
         'FEATURE_COUNT': '10000000', # wystarczająco dużo, by ogarnąć każdą sytuację
         'WIDTH': 2,
         'HEIGHT': 2,
@@ -111,7 +116,11 @@ def fetchPoint(wms_addr, w, s, e, n, pointx, pointy):
         'Y': pointy,
     }
 
-    url = "%s&%s" % (wms_addr, urlencode(params))
+    #TODO: do proper URL parsing
+    if '?' in wms_addr:
+        url = "%s&%s" % (wms_addr, urlencode(params))
+    else:
+        url = "%s?%s" % (wms_addr, urlencode(params))
     __log.info(url)
     data = urlopen(url).read()
     return data
@@ -212,21 +221,42 @@ def convertToOSM(lst):
     return ret
 
 class iMPA(object):
-    def __init__(self, gmina):
-        self.conf = getInit('http://%s.e-mapa.net' % (gmina,))
+    def __init__(self, gmina=None, wms=None, bbox=None, srs=None):
+        if gmina:
+            self.conf = getInit('http://%s.e-mapa.net' % (gmina,))
+        else:
+            if not wms and not bbox and not srs:
+                raise ValueError("If no gmina provided then wms and bbox are required")
+            self.conf = {}
+        if wms:
+            self.conf['wms_addr'] = wms
+        
+        if bbox:
+            self.conf['bbox'] = dict(zip(('minx', 'miny', 'maxx', 'maxy'), bbox.split(",")))
+
+        if srs:
+            self.conf['srs'] = srs
+
+        if 'wms_addr' not in self.conf:
+            raise ValueError("No WMS address found")
 
     def getConf(self):
         return self.conf
 
     def fetchTiles(self):
-        return list(fetchTiles(self.conf['wms_addr'], self.conf['bbox']).values())
+        return list(fetchTiles(self.conf['wms_addr'], self.conf['bbox'], srs=self.conf['srs']).values())
 
 def main():
     parser = argparse.ArgumentParser(description="Downloads data from iMPA and saves in OSM or JSON format. CC-BY-SA 3.0 @ WiktorN. Filename is <gmina>.osm or <gmina>.json")
     parser.add_argument('--output-format', choices=['json', 'osm'],  help='output file format - "json" or "osm", default: osm', default="osm", dest='output_format')
     parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
     parser.add_argument('--no-mapping', help='Disable mapping of streets and cities', dest='no_mapping', default=False, action='store_const', const=True)
-    parser.add_argument('gmina', nargs='+', help='list of iMPA services to download, it will use at most 4 concurrent threads to download and analyse')
+    parser.add_argument('--wms', help='Override WMS address with address points', dest='wms', default=None)
+    parser.add_argument('--bbox', 
+        help='Provide bbox, where to look for addresses in format w,s,e,n. BBOX for Poland: 14.1229707,49.0020305,24.1458511,55.0336963',
+        dest='bbox', default=None)
+    parser.add_argument('--srs', help='SRS for bbox, defalts to EPSG:2180, use EPSG:4326 if you provide standard lon,lat', dest='srs', default='EPSG:2180')
+    parser.add_argument('gmina', nargs='*',  help='list of iMPA services to download, it will use at most 4 concurrent threads to download and analyse')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -236,7 +266,11 @@ def main():
         mapstreet = lambda x, y: x
         mapcity = lambda x, y: x
 
-    rets = parallel_execution(*map(lambda x: lambda: iMPA(x).fetchTiles(), args.gmina))
+    impa_gen = partial(iMPA, wms=args.wms, bbox=args.bbox, srs=args.srs)
+    if args.gmina:
+        rets = parallel_execution(*map(lambda x: lambda: impa_gen(x).fetchTiles(), args.gmina))
+    else:
+        rets = [impa_gen().fetchTiles(),]
     if args.output_format == 'json':
         write_conv_func = lambda x: json.dumps(list(x))
         file_suffix = '.json'
@@ -244,9 +278,13 @@ def main():
         write_conv_func = convertToOSM
         file_suffix = '.osm'
 
-    for (ret, gmina) in zip(rets, args.gmina):
-        with open(gmina+file_suffix, "w+", encoding='utf-8') as f:
-            f.write(write_conv_func(ret))
+    if args.gmina:
+        for (ret, gmina) in zip(rets, args.gmina):
+            with open(gmina+file_suffix, "w+", encoding='utf-8') as f:
+                f.write(write_conv_func(ret))
+    else:
+        with open('result.osm', 'w+', encoding='utf-8') as f:
+            f.write(write_conv_func(ret[0]))
 
 if __name__ == '__main__':
     main()
