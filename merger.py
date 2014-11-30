@@ -322,10 +322,10 @@ def _processOne(osmdb, entry):
                     c, 'addr:city', entry.get('addr:city')) and _valEq(
                     c, 'addr:place', entry.get('addr:place')) and _valEq(
                     c, 'addr:housenumber', entry.get('addr:housenumber')):
-                if not _valEq(c, 'addr:street', entry.get('addr:street')):
+                if entry.get('addr:street') and not _valEq(c, 'addr:street', entry.get('addr:street')):
                     # take addr:street value from OSM instead of imported data
                     __log.info("Mapping street %s -> %s based on OSM candidate. Full address: %s", 
-                        entry['addr:street'], _getVal(c, 'addr:street'), entrystr(entry))
+                        entry.get('addr:street'), _getVal(c, 'addr:street'), entrystr(entry))
 
                     entry['addr:street'] = _getVal(c, 'addr:street')
                 else:
