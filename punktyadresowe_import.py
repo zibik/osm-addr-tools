@@ -131,7 +131,7 @@ def _filterOnes(lst):
 def markSuspiciousAddr(dct):
     dups = {}
     for addr in dct.values():
-        v = bool(addr.get('addr:street'))
+        v = bool(addr.get('addr:street').strip())
         try:
             lst = dups[addr['teryt:simc']]
         except KeyError:
@@ -139,6 +139,7 @@ def markSuspiciousAddr(dct):
             dups[addr['teryt:simc']] = lst
         lst.append(v)
     
+    dups_count = dict((k, len(_filterOnes(v))) for k, v in dups.items())
     dups = dict((k, len(_filterOnes(v))/len(v)) for k, v in dups.items())
     dups = dict((k,v) for k, v in filter(lambda x: 0 < x[1] and x[1] < 1, dups.items()))
 
@@ -149,7 +150,7 @@ def markSuspiciousAddr(dct):
                 dct.values()
                 )
             ):
-        i['fixme'] = 'Mixed addressing scheme in city - with streets and without. %.1f%% with streets.' % (dups[i['teryt:simc']]*100,)
+        i['fixme'] = 'Mixed addressing scheme in city - with streets and without. %.1f%% (%d) with streets.' % (dups[i['teryt:simc']]*100, dups_count[i['teryt:simc']])
 
     return dct
 
