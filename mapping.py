@@ -239,6 +239,7 @@ addr_map = {
  'Norwida C.K.': 'Cypriana Kamila Norwida',
  'Norwida Cypriana': 'Cypriana Kamila Norwida',
  'Norwida': 'Cypriana Kamila Norwida',
+ 'Cypriana Norwida': 'Cypriana Kamila Norwida',
  'Noskowskiego Zygmunta': 'Zygmunta Noskowskiego',
  'Nowotki M.': 'Marcelego Nowotki',
  'Nowotki': 'Marcelego Nowotki',
