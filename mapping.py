@@ -455,6 +455,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from itertools import groupby
 from collections import namedtuple
+import functools
 
 __log = logging.getLogger(__name__)
 
@@ -560,7 +561,6 @@ __DB_TERYT_ULIC = os.path.join(tempfile.gettempdir(), 'teryt_ulic_v3.db')
 __mapping_symul = {}
 __mapping_simc = {}
 __teryt_ulic = {}
-__printed = set()
 
 import threading
 __init_lock = threading.Lock()
@@ -576,6 +576,7 @@ def __init():
                 __teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
                 __is_initialized = True
 
+@functools.lru_cache(max_size=None)
 def mapstreet(strname, symul):
     __init()
     teryt_entry = __teryt_ulic.get(symul)
@@ -593,31 +594,28 @@ def mapstreet(strname, symul):
         return ret
     except KeyError:
         try:
-            print_key = "symul:%s" % (symul,)
             ret = __mapping_symul[symul]
-            if len(ret) > 1 and print_key not in __printed:
+            if len(ret) > 1:
                 __log.info("Inconsitent mapping for teryt:sym_ul = %s. Original value: %s, TERYT: %s, OSM values: %s. Leaving original value.", symul, strname, __teryt_ulic.get(symul).nazwa,  ", ".join(ret))
                 return strname
             ret = checkAndAddCecha(ret[0])
-            if ret != strname and print_key not in __printed:
+            if ret != strname:
                 __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, __teryt_ulic.get(symul).nazwa, symul))
-                __printed.add(print_key)
             return ret
         except KeyError:
             return checkAndAddCecha(strname)
 
+@functools.lru_cache(max_size=None)
 def mapcity(cityname, simc):
     __init()
     try:
-        print_key = "simc:%s" % (simc,)
         ret = __mapping_simc[simc]
-        if len(ret) > 1 and print_key not in __printed:
+        if len(ret) > 1:
             __log.info("Inconsitent mapping for teryt:simc = %s. Original value: %s, OSM values: %s. Leaving original value.", simc, cityname, ", ".join(ret))
             return cityname
         ret = ret[0]
-        if ret != cityname and print_key not in __printed:
+        if ret != cityname:
             __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret, simc))
-            __printed.add(print_key)
         return ret
     except KeyError:
         return cityname
