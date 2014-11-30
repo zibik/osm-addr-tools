@@ -33,6 +33,7 @@ from bs4 import BeautifulSoup
 from mapping import mapstreet, mapcity
 from utils import parallel_execution
 from functools import partial
+from collections import Counter
 
 
 # stałe
@@ -245,7 +246,14 @@ class iMPA(object):
         return self.conf
 
     def fetchTiles(self):
-        return list(fetchTiles(self.conf['wms_addr'], self.conf['bbox'], srs=self.conf['srs']).values())
+        ret = list(fetchTiles(self.conf['wms_addr'], self.conf['bbox'], srs=self.conf['srs']).values())
+        for (addr, occurances) in Counter(map(
+                lambda x: tuple((x.get(z) for z in ('addr:city', 'addr:housenumber', 'addr:place', 'addr:postcode', 'addr:street'))),
+                ret
+            )).items():
+            if occurances > 1:
+                __log.warning("Duplicte addresses in import: %s", addr)
+        return ret
 
 def main():
     parser = argparse.ArgumentParser(description="Downloads data from iMPA and saves in OSM or JSON format. CC-BY-SA 3.0 @ WiktorN. Filename is <gmina>.osm or <gmina>.json")
