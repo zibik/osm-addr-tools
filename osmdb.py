@@ -28,7 +28,7 @@ def _getAddr(soup):
     if not street:
         street = _getVal(soup, 'addr:place')
         city = None
-    housenumber = _getVal(soup, 'addr:housenumber')
+    housenumber = _getVal(soup, 'addr:housenumber').replace(' ', '')
     return (city, street, housenumber)
 
     
@@ -98,6 +98,7 @@ class OsmDb(object):
                )
     def getbyaddress(self, key):
         key = tuple(self.__keyfunc(x) if x else x for x in key)
+        key = key[:2] + (key[2].replace(' ',''),)
         return self.__addr_index.get(key, [])
 
     def getalladdresses(self):
