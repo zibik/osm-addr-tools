@@ -468,7 +468,7 @@ __log = logging.getLogger(__name__)
 TerytUlicEntry = namedtuple('TerytUlicEntry', ['sym_ul', 'nazwa', 'cecha'])
 
 __CECHA_MAPPING = {
-        'UL.': None,
+        'UL.': '',
         'AL.': 'Aleja',
         'PL.': 'Plac',
         'SKWER': 'Skwer',
@@ -481,7 +481,7 @@ __CECHA_MAPPING = {
         'OS.': 'Osiedle',
         'OGRÓD': 'Ogród',
         'WYB.': 'Wybrzeże',
-        'INNE': None
+        'INNE': '' 
     }
 
 def downloadULIC():
