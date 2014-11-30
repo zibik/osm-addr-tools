@@ -181,7 +181,7 @@ def onlyAddressNode(node):
         return False
     return _getVal(node, 'addr:housenumber') and all(map(
         lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 
-                        'addr:city', 'addr:postcode', 'teryt:sym_ul', 
+                        'addr:city', 'addr:postcode', 'addr:country', 'teryt:sym_ul', 
                         'teryt:simc', 'source', 'source:addr', 'fixme'},
         (x['k'] for x in node.find_all('tag'))
         )
