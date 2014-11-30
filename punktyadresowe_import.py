@@ -131,7 +131,7 @@ def _filterOnes(lst):
 def markSuspiciousAddr(dct):
     dups = {}
     for addr in dct.values():
-        v = bool(addr.get('addr:street').strip())
+        v = bool(addr.get('addr:street', '').strip())
         try:
             lst = dups[addr['teryt:simc']]
         except KeyError:
