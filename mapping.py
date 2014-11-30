@@ -583,6 +583,9 @@ def mapstreet(strname, symul):
     teryt_entry = __teryt_ulic.get(symul)
     def checkAndAddCecha(street):
         if teryt_entry and teryt_entry.cecha:
+            if street.upper().startswith(teryt_entry.cecha.upper()):
+                # remove short version cecha and prepand full version
+                street = "%s %s" % (__CECHA_MAPPING.get(teryt_entry.cecha, '') , strname[len(teryt_entry.cecha):].strip())
             if not street.upper().startswith(teryt_entry.cecha.upper()) and \
                 not street.upper().startswith(__CECHA_MAPPING.get(teryt_entry.cecha, '').upper()):
                 __log.debug("Adding TERYT.CECHA=%s to street=%s (teryt:sym_ul=%s)" % (__CECHA_MAPPING.get(teryt_entry.cecha, ''), street, symul))
