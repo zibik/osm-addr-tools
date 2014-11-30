@@ -182,7 +182,7 @@ def onlyAddressNode(node):
     return _getVal(node, 'addr:housenumber') and all(map(
         lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place', 
                         'addr:city', 'addr:postcode', 'addr:country', 'teryt:sym_ul', 
-                        'teryt:simc', 'source', 'source:addr', 'fixme'},
+                        'teryt:simc', 'source', 'source:addr', 'fixme', 'addr:street:source'},
         (x['k'] for x in node.find_all('tag'))
         )
     )
@@ -256,6 +256,14 @@ def _processOne(osmdb, entry):
                     node.name, node['id'], how_far)
             # update street name based on OSM data
             entry['addr:street'] = _getVal(node, 'addr:street')
+        if node and _valEq(node, 'addr:street', entry.get('addr:street')) and _valEq(node, 'addr:place', entry.get('addr:place')) and \
+            _valEq(node, 'addr:city', entry.get('addr:street')) and not _valEq(node, 'addr:housenumber', entry.get('addr:housenumber')) and \
+            ((node.name == 'node' and how_far < 5.0) or (node.name == 'way' and how_far < 10.0)) and node.get('action') != 'delete':
+
+            # there is only difference in housenumber, that is similiar
+            __log.info("Updating housenumber from %s to %s", _getVal(node, 'addr:housenumber'), entry['addr:housenumber'])
+            _updateTag(node, 'addr:housenumber', entry['addr:housenumber'])
+            node['action'] = 'modify'
     except StopIteration: pass
 
     existing = osmdb.getbyaddress(_getAddr(entry))
