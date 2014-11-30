@@ -576,7 +576,7 @@ def __init():
                 __teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
                 __is_initialized = True
 
-@functools.lru_cache(max_size=None)
+@functools.lru_cache(maxsize=None)
 def mapstreet(strname, symul):
     __init()
     teryt_entry = __teryt_ulic.get(symul)
@@ -605,7 +605,7 @@ def mapstreet(strname, symul):
         except KeyError:
             return checkAndAddCecha(strname)
 
-@functools.lru_cache(max_size=None)
+@functools.lru_cache(maxsize=None)
 def mapcity(cityname, simc):
     __init()
     try:
