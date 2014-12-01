@@ -223,6 +223,8 @@ def convertToOSM(lst):
     return ret
 
 class iMPA(object):
+    __log = logging.getLogger(__name__).getChild('iMPA')
+
     def __init__(self, gmina=None, wms=None, bbox=None, srs=None):
         if gmina:
             self.conf = getInit('http://%s.e-mapa.net' % (gmina,))
@@ -252,7 +254,7 @@ class iMPA(object):
                 ret
             )).items():
             if occurances > 1:
-                __log.warning("Duplicte addresses in import: %s", addr)
+                self.__log.warning("Duplicte addresses in import: %s", addr)
         return ret
 
 def main():
