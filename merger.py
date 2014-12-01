@@ -286,8 +286,10 @@ def _processOne(osmdb, entry):
         if max(x[0] for x in existing) > 100:
             for (dist, node) in existing:
                 if dist > 100:
-                    __log.warning("Address (id=%s:%s) %s is %d meters from imported point", node.name, node['id'], entrystr(entry), dist)
-                    _updateTag(node, 'fixme', "Node is %d meters away from imported point"  % dist)
+                    if not (node.name in ( 'way', 'relation') and Point(entry_point).within(osmdb.getShape(node))):
+                        # ignore the distance, if the point is within the node
+                        __log.warning("Address (id=%s:%s) %s is %d meters from imported point", node.name, node['id'], entrystr(entry), dist)
+                        _updateTag(node, 'fixme', "Node is %d meters away from imported point"  % dist)
                 node['action'] = 'modify'
             if min(x[0] for x in existing) > 50:
                 ret = [_createPoint(entry)]
