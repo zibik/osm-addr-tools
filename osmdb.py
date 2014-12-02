@@ -121,17 +121,61 @@ class OsmDb(object):
                                                     (x['role'] == 'outer' or not x.get('role')))
                     )
             
-            way_by_first_node = dict((x.find('nd')['ref'], x) for x in outer)
+            way_by_first_node = createDictOfList((x.find('nd')['ref'], x) for x in outer)
+            way_by_last_node = createDictOfList((x.find_all('nd')[-1]['ref'], x) for x in outer)
             ret = []
             cur_elem = outer[0]
+            node_ids = []
             while outer:
-                node_ids = list(y['ref'] for y in cur_elem.find_all('nd', recursive=False))
-                ret.extend(tuple(map(float, (x['lat'], x['lon']))) for x in (self.__nodes[y] for y in node_ids))
+                ids = list(y['ref'] for y in cur_elem.find_all('nd', recursive=False))
+                if not node_ids:
+                    node_ids.extend(ids)
+                else:
+                    if ids[0] == node_ids[-1]:
+                        pass
+                    elif ids[-1] == node_ids[-1]:
+                        ids = list(reversed(ids))
+                    elif ids[0] == node_ids[0]:
+                        node_ids = list(reversed(node_ids))
+                    elif ids[-1] == node_ids[0]:
+                        node_ids = list(reversed(node_ids))
+                        ids = list(reversed(ids))
+                ret.extend(tuple(map(float, (x['lat'], x['lon']))) for x in (self.__nodes[y] for y in ids))
+                node_ids.extend(ids)
                 outer.remove(cur_elem)
-                cur_elem = way_by_first_node[node_ids[-1]]
+                if node_ids[0] == node_ids[-1]:
+                    # get only first outer 
+                    # TODO - return MultiPolygon with inner and outer shapes
+                    break
+                # TODO: refactor this
+                # try last node with first node of what's left in outer
+                if outer:
+                    try:
+                        cur_elem = list(filter(lambda x: x in outer, way_by_first_node[node_ids[-1]]))[0]
+                    except (KeyError, IndexError):
+                        try:
+                            # try last node with last node of what's left in outer
+                            cur_elem = list(filter(lambda x: x in outer, way_by_last_node[node_ids[-1]]))[0]
+                        except (KeyError, IndexError):
+                            try:
+                                # try first node with last node of what's left in outer
+                                cur_elem = list(filter(lambda x: x in outer, way_by_last_node[node_ids[0]]))[0]
+                            except (KeyError, IndexError):
+                                # try first node with first node of what's left in outer
+                                cur_elem = list(filter(lambda x: x in outer, way_by_first_node[node_ids[0]]))[0]
+
             return Polygon(ret)
                 
-
+def createDictOfList(lst):
+    ret = {}
+    for (k, v) in lst:
+        try:
+            entry = ret[k]
+        except KeyError:
+            entry = []
+            ret[k] = entry
+        entry.append(v)
+    return ret
 def main():
     odb = OsmDb(open("adresy.osm").read())
     print(list(odb.nearest((53.5880600, 19.5555200), 10)))
