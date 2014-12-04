@@ -326,8 +326,8 @@ def _processOne(osmdb, entry):
                     c, 'addr:housenumber', entry.get('addr:housenumber')):
                 if entry.get('addr:street') and not _valEq(c, 'addr:street', entry.get('addr:street')):
                     # take addr:street value from OSM instead of imported data
-                    __log.info("Mapping street %s -> %s based on OSM candidate. Full address: %s", 
-                        entry.get('addr:street'), _getVal(c, 'addr:street'), entrystr(entry))
+                    __log.info("Mapping street %s -> %s based on OSM candidate. Full address: %s (%s:%s)", 
+                        entry.get('addr:street'), _getVal(c, 'addr:street'), entrystr(entry), c.name, c['id'])
 
                     entry['addr:street'] = _getVal(c, 'addr:street')
                 else:
