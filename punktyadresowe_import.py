@@ -33,7 +33,7 @@ from bs4 import BeautifulSoup
 from mapping import mapstreet, mapcity
 from utils import parallel_execution
 from functools import partial
-from collections import Counter
+from collections import Counter, namedtuple
 
 
 # stałe
@@ -50,81 +50,6 @@ __opener.addheaders = __headers.items()
 
 # setup
 urequest.install_opener(__opener)
-
-
-
-def getInit(gmina_url):
-    url = gmina_url + '/application/system/init.php'
-    __log.info(url)
-    data = urlopen(url).read().decode('utf-8')
-    init_data = json.loads(data)
-    
-    # konwersja z EPSG:2180 na lon/lat
-    #(w, s) = _EPSG2180(init_data['spatialExtent'][0], init_data['spatialExtent'][1], inverse=True)
-    #(e, n) = _EPSG2180(init_data['spatialExtent'][2], init_data['spatialExtent'][3], inverse=True)
-
-    bbox = {
-        'minx': init_data['spatialExtent'][0], 'miny': init_data['spatialExtent'][1],
-        'maxx': init_data['spatialExtent'][2], 'maxy': init_data['spatialExtent'][3],
-    }
-
-
-
-    ret = {
-        'bbox': bbox,
-        'terc': init_data['teryt'],
-        'srs': 'EPSG:2180',
-    }
-
-    address_layers = list(
-                filter(
-                    lambda x: x['title'] and x['title'].upper() == 'ADRESY I ULICE',
-                    init_data['map']['services']
-                )
-        )
-    if len(address_layers) == 0:
-        __log.warning('No information about address layer in init.php')
-        __log.debug(data)
-    else:
-        ret['wms_addr'] = address_layers[0]['address']
-    return ret
-
-
-def fetchTiles(wms_addr, bbox, srs):
-    return analyzePoints(
-                fetchPoint(
-                    wms_addr, 
-                    bbox['minx'], bbox['miny'], bbox['maxx'], bbox['maxy'], 
-                    0, 0,
-                    srs)) # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
-                        
-
-def fetchPoint(wms_addr, w, s, e, n, pointx, pointy, srs="EPSG:2180", layer="punkty"):
-    params = {
-        'VERSION': '1.1.1',
-        'SERVICE': 'WMS',
-        'REQUEST': 'GetFeatureInfo',
-        'LAYERS': layer, # było: ulice,punkty
-        'QUERY_LAYERS': layer, # było: ulice, punkty
-        'FORMAT': 'image/png',
-        'INFO_FORMAT': 'text/html',
-        'SRS': srs,
-        'FEATURE_COUNT': '10000000', # wystarczająco dużo, by ogarnąć każdą sytuację
-        'WIDTH': 2,
-        'HEIGHT': 2,
-        'BBOX': '%s,%s,%s,%s' % (w, s, e, n),
-        'X': pointx,
-        'Y': pointy,
-    }
-
-    #TODO: do proper URL parsing
-    if '?' in wms_addr:
-        url = "%s&%s" % (wms_addr, urlencode(params))
-    else:
-        url = "%s?%s" % (wms_addr, urlencode(params))
-    __log.info(url)
-    data = urlopen(url).read()
-    return data
 
 def _filterOnes(lst):
     return list(filter(lambda x: x > 0, lst))
@@ -209,25 +134,94 @@ def convertToOSM(lst):
     ret = """<?xml version='1.0' encoding='UTF-8'?>
 <osm version='0.6' upload='false' generator='punktyadresowe_import.php'>
 """
+    ret = BeautifulSoup("", "xml")
+    osm = ret.new_tag('osm', version='0.6', upload='false', generator='punktyadresowe_import.py')
+    ret.append(osm)
+
     for (node_id, val) in enumerate(lst):
-        ret += '<node id="-%s" action="modify" visible="true" lat="%s" lon="%s">\n' % (node_id+1, 
-                                                                        val['location']['lat'], 
-                                                                        val['location']['lon'])
-        for i in ('addr:housenumber', 'source:addr', 'addr:postcode', 'addr:street', 'addr:city',
-                    'teryt:sym_ul', 'addr:place', 'teryt:simc', 'fixme'):
-            tagval = val.get(i)
-            if tagval:
-                ret += '<tag k="%s" v="%s" />\n' % (i, tagval)
-        ret += '</node>\n'
-    ret += '</osm>'
-    return ret
+        osm.append(val.asOsmSoup(-1 * (node_id + 1)))
+    return ret.prettify()
+
+class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 'street', 'city', 'sym_ul', 'simc', 'source', 'location'])):
+    def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location=''):
+        #super(Address, self).__init__(*args, **kwargs)
+        self.housenumber = housenumber
+        self.postcode = postcode
+        self.street = mapstreet(street.replace('  ', ' '), sym_ul)
+        self.city = mapcity(city, simc)
+        self.sym_ul = sym_ul
+        self.simc = simc
+        self.source = source
+        self.location = location
+        self._fixme = []
+        assert all(map(lambda x: isinstance(x, str), (self.housenumber, self.postcode, self.street, self.city, self.sym_ul, self.simc, self.source)))
+        assert isinstance(self.location, dict)
+        assert 'lon' in self.location
+        assert 'lat' in self.location
+
+    def asOsmSoup(self, node_id):
+        ret = BeautifulSoup("", "xml")
+        node = ret.new_tag('node', id=node_id, action='modify', visible='true', lat=self.location['lat'], lon=self.location['lon'])
+        node.append(ret.new_tag('tag', k='addr:housenumber', v=self.housenumber))
+        if self.postcode:
+            node.append(ret.new_tag('tag', k='addr:postcode', v=self.postcode))
+        if self.street:
+            node.append(ret.new_tag('tag', k='addr:street', v=self.street))
+            node.append(ret.new_tag('tag', k='addr:city', v=self.city))
+        else:
+            node.append(ret.new_tag('tag', k='addr:place', v=self.city))
+
+        node.append(ret.new_tag('tag', k='addr:simc', v=self.simc))
+        node.append(ret.new_tag('tag', k='addr:source', v=self.source))
+        if self._fixme:
+            node.append(ret.new_tag('tag', k='fixme', v=" ".join(self.fixme)))
+        return node
+
+    def osOsmXML(self, node_id):
+        return asOsmSoup.prettify()
 
 class iMPA(object):
     __log = logging.getLogger(__name__).getChild('iMPA')
 
+    def _getInit(self, gmina_url):
+        url = gmina_url + '/application/system/init.php'
+        self.__log.info(url)
+        data = urlopen(url).read().decode('utf-8')
+        init_data = json.loads(data)
+        
+        # konwersja z EPSG:2180 na lon/lat
+        #(w, s) = _EPSG2180(init_data['spatialExtent'][0], init_data['spatialExtent'][1], inverse=True)
+        #(e, n) = _EPSG2180(init_data['spatialExtent'][2], init_data['spatialExtent'][3], inverse=True)
+
+        bbox = {
+            'minx': init_data['spatialExtent'][0], 'miny': init_data['spatialExtent'][1],
+            'maxx': init_data['spatialExtent'][2], 'maxy': init_data['spatialExtent'][3],
+        }
+
+
+
+        ret = {
+            'bbox': bbox,
+            'terc': init_data['teryt'],
+            'srs': 'EPSG:2180',
+        }
+
+        address_layers = list(
+                    filter(
+                        lambda x: x['title'] and x['title'].upper() == 'ADRESY I ULICE',
+                        init_data['map']['services']
+                    )
+            )
+        if len(address_layers) == 0:
+            self.__log.warning('No information about address layer in init.php')
+            self.__log.debug(data)
+        else:
+            ret['wms_addr'] = address_layers[0]['address']
+        return ret
+
     def __init__(self, gmina=None, wms=None, bbox=None, srs=None):
         if gmina:
-            self.conf = getInit('http://%s.e-mapa.net' % (gmina,))
+            self.conf = self._getInit('http://%s.e-mapa.net' % (gmina,))
         else:
             if not wms and not bbox and not srs:
                 raise ValueError("If no gmina provided then wms and bbox are required")
@@ -247,10 +241,93 @@ class iMPA(object):
     def getConf(self):
         return self.conf
 
+    def fetchPoint(self, wms_addr, w, s, e, n, pointx, pointy, srs="EPSG:2180", layer="punkty"):
+        params = {
+            'VERSION': '1.1.1',
+            'SERVICE': 'WMS',
+            'REQUEST': 'GetFeatureInfo',
+            'LAYERS': layer, # było: ulice,punkty
+            'QUERY_LAYERS': layer, # było: ulice, punkty
+            'FORMAT': 'image/png',
+            'INFO_FORMAT': 'text/html',
+            'SRS': srs,
+            'FEATURE_COUNT': '10000000', # wystarczająco dużo, by ogarnąć każdą sytuację
+            'WIDTH': 2,
+            'HEIGHT': 2,
+            'BBOX': '%s,%s,%s,%s' % (w, s, e, n),
+            'X': pointx,
+            'Y': pointy,
+        }
+        
+        josm_wms = {
+            'VERSION': '1.1.1',
+            'SERVICE': 'WMS',
+            'REQUEST': 'GetMap',
+            'LAYERS': layer,
+            'FORMAT': 'image/png',
+            'TRANSPARENT': 'true',
+        }    
+
+        #TODO: do proper URL parsing
+        if '?' in wms_addr:
+            url = "%s&%s" % (wms_addr, urlencode(params))
+            self.__log.warning("JOSM layer: %s&%s&SRS={proj}&WIDTH={width}&HEIGHT={height}&BBOX={bbox}" % (wms_addr, urlencode(josm_wms)))
+        else:
+            url = "%s?%s" % (wms_addr, urlencode(params))
+            self.__log.warning("JOSM layer: %s?%s&SRS={proj}&WIDTH={width}&HEIGHT={height}&BBOX={bbox}" % (wms_addr, urlencode(josm_wms)))
+        self.__log.info(url)
+        data = urlopen(url).read()
+        return data
+
+    def _convertToAddress(self, soup):
+        kv = dict(zip(
+            map(lambda x: x.text, soup.find_all('th')),
+            map(lambda x: x.text, soup.find_all('td'))
+        ))
+        try:
+            (lon, lat) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', ', 1))
+            (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(', 1)
+            (city_name, city_id) = kv[str_normalize('Miejscowość(Id GUS)')].rsplit('(', 1)
+
+            if float(lon) < 14 or float(lon) > 25 or float(lat) < 49 or float(lat) > 56:
+                self.__log.warning("Point out of Polish borders: (%s, %s), %s, %s, %s", lat, lon, city_name, str_name, kv[str_normalize('Numer')])
+
+            return Address(
+                kv[str_normalize('Numer')],
+                kv[str_normalize('Kod pocztowy')].strip(),
+                str_name.strip(),
+                city_name.strip(),
+                str_id[:-1], # sym_ul
+                city_id[:-1], # simc
+                kv[str_normalize('Źródło danych')],
+                {'lat': lat, 'lon': lon} # location
+            )
+        except KeyError:
+            self.__log.error(soup)
+            self.__log.error(kv)
+            self.__log.error("Exception during point analysis", exc_info=True)
+            raise
+        except ValueError:
+            self.__log.error(soup)
+            self.__log.error(kv)
+            self.__log.error("Exception during point analysis", exc_info=True)
+            raise
+
     def fetchTiles(self):
-        ret = list(fetchTiles(self.conf['wms_addr'], self.conf['bbox'], srs=self.conf['srs']).values())
+        html = self.fetchPoint(
+            self.conf['wms_addr'], 
+            self.conf['bbox']['minx'], 
+            self.conf['bbox']['miny'], 
+            self.conf['bbox']['maxx'], 
+            self.conf['bbox']['maxy'], 
+            0, 0, # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
+            self.conf['srs']
+        )
+
+        ret = list(map(self._convertToAddress, BeautifulSoup(html).find_all('table')))
+                    
         for (addr, occurances) in Counter(map(
-                lambda x: tuple((x.get(z) for z in ('addr:city', 'addr:housenumber', 'addr:place', 'addr:postcode', 'addr:street'))),
+                lambda x: tuple((getattr(x, z) for z in ('city', 'housenumber', 'postcode', 'street'))),
                 ret
             )).items():
             if occurances > 1:
@@ -280,6 +357,7 @@ def main():
     impa_gen = partial(iMPA, wms=args.wms, bbox=args.bbox, srs=args.srs)
     if args.gmina:
         rets = parallel_execution(*map(lambda x: lambda: impa_gen(x).fetchTiles(), args.gmina))
+        #rets = list(map(lambda x: impa_gen(x).fetchTiles(), args.gmina)) # usefull for debugging
     else:
         rets = [impa_gen().fetchTiles(),]
     if args.output_format == 'json':
