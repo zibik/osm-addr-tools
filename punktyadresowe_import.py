@@ -80,56 +80,6 @@ def markSuspiciousAddr(dct):
 
     return dct
 
-def analyzePoints(html):
-    soup = BeautifulSoup(html)
-    ret = {}
-    for i in soup.find_all('table'):
-        point = analyzePoint(i)
-        ret[tuple(point['location'].values())] = point
-    
-    return markSuspiciousAddr(ret)
-
-def analyzePoint(soup):
-    kv = dict(zip(
-        map(lambda x: x.text, soup.find_all('th')),
-        map(lambda x: x.text, soup.find_all('td'))
-    ))
-    try:
-        (lon, lat) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', ', 1))
-        (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(', 1)
-        (city_name, city_id) = kv[str_normalize('Miejscowość(Id GUS)')].rsplit('(', 1)
-
-        if float(lon) < 14 or float(lon) > 25 or float(lat) < 49 or float(lat) > 56:
-            __log.warning("Point out of Polish borders: (%s, %s), %s, %s, %s", lat, lon, city_name, str_name, kv[str_normalize('Numer')])
-
-        ret = {
-            'location': {'lat': lat, 'lon': lon},
-            'addr:housenumber': kv[str_normalize('Numer')],
-            'source:addr': kv[str_normalize('Źródło danych')],
-        }
-        if kv[str_normalize('Kod pocztowy')].strip():
-            ret['addr:postcode'] = kv[str_normalize('Kod pocztowy')]
-
-        if str_name.strip():
-            ret['addr:street'] = mapstreet(str_name.strip().replace('  ', ' '), str_id[:-1])
-            ret['teryt:sym_ul'] = str_id[:-1]
-            ret['addr:city'] = mapcity(city_name.strip(), city_id[:-1])
-        else:
-            ret['addr:place'] = mapcity(city_name.strip(), city_id[:-1])
-        
-        ret['teryt:simc'] = city_id[:-1]
-        return ret
-    except KeyError:
-        __log.error(soup)
-        __log.error(kv)
-        __log.error("Exception during point analysis", exc_info=True)
-        raise
-    except ValueError:
-        __log.error(soup)
-        __log.error(kv)
-        __log.error("Exception during point analysis", exc_info=True)
-        raise
-    
 def convertToOSM(lst):
     ret = """<?xml version='1.0' encoding='UTF-8'?>
 <osm version='0.6' upload='false' generator='punktyadresowe_import.php'>
