@@ -349,8 +349,7 @@ class iMPA(AbstractImport):
             *self.getBbox2180(),
             pointx=0, pointy=0 # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
         )
-        soup = BeautifulSoup(html)
-        ret = list(map(self._convertToAddress, soup.find_all('table')))
+        ret = list(map(self._convertToAddress, BeautifulSoup(html).find_all('table')))
         return ret
 
 class GUGiK(AbstractImport):
@@ -379,7 +378,7 @@ class GUGiK(AbstractImport):
 
 
     def _convertToAddress(self, soup):
-        desc_soup = BeautifulSoup(str(soup.description.string), "xml")
+        desc_soup = BeautifulSoup(str(soup.description.string))
         addr_kv = dict(
             (
              str(x.find('span', class_='atr-name').string),
