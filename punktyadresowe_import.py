@@ -84,6 +84,7 @@ def convertToOSM(lst):
 
     for (node_id, val) in enumerate(lst):
         osm.append(val.asOsmSoup(-1 * (node_id + 1)))
+
     return ret.prettify()
 
 class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 'street', 'city', 'sym_ul', 'simc', 'source', 'location'])):
@@ -310,8 +311,8 @@ class iMPA(AbstractImport):
 
     def _convertToAddress(self, soup):
         kv = dict(zip(
-            map(lambda x: x.text, soup.find_all('th')),
-            map(lambda x: x.text, soup.find_all('td'))
+            map(lambda x: str(x.text), soup.find_all('th')),
+            map(lambda x: str(x.text), soup.find_all('td'))
         ))
         try:
             (lon, lat) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', ', 1))
@@ -348,7 +349,8 @@ class iMPA(AbstractImport):
             *self.getBbox2180(),
             pointx=0, pointy=0 # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
         )
-        ret = list(map(self._convertToAddress, BeautifulSoup(html).find_all('table')))
+        soup = BeautifulSoup(html)
+        ret = list(map(self._convertToAddress, soup.find_all('table')))
         return ret
 
 class GUGiK(AbstractImport):
@@ -377,12 +379,14 @@ class GUGiK(AbstractImport):
 
 
     def _convertToAddress(self, soup):
+        desc_soup = BeautifulSoup(str(soup.description.string), "xml")
         addr_kv = dict(
             (
-             x.find('span', class_='atr-name').string,
-             x.find('span', class_='atr-value').string
-            ) for x in BeautifulSoup(soup.description.string).find_all('li')
+             str(x.find('span', class_='atr-name').string),
+             str(x.find('span', class_='atr-value').string)
+            ) for x in desc_soup.find_all('li')
         )
+
         coords = soup.Point.coordinates.string.split(',')
         ret = Address(
                 addr_kv[str_normalize('NUMER_PORZADKOWY')],
