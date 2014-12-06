@@ -11,6 +11,18 @@ def parallel_execution(*args):
         )
     )
 
+def groupby(lst, keyfunc):
+    ret = {}
+    for i in lst
+        key = keyfunc(i)
+        try:
+            entry = ret[key]
+        except KeyError:
+            entry = []
+            ret[key] = entry
+        entry.append(i)
+    return ret
+
 def main():
     from time import sleep,time
     print(time())
