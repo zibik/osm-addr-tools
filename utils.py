@@ -13,7 +13,7 @@ def parallel_execution(*args):
 
 def groupby(lst, keyfunc):
     ret = {}
-    for i in lst
+    for i in lst:
         key = keyfunc(i)
         try:
             entry = ret[key]
