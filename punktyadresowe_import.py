@@ -148,6 +148,33 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             return "%s, %s, %s" % (self.city, self.street, self.housenumber)
         return "%s, %s" % (self.city, self.housenumber)
 
+    def to_JSON(self):
+        return json.dumps({
+            'addr:housenumber': self.housenumber,
+            'addr:postcode': self.postcode,
+            'addr:street': self.street,
+            'addr:city': self.city,
+            'teryt:sym_ul': self.sym_ul,
+            'teryt:simc': self.simc,
+            'addr:source': self.source,
+            'location': self.location,
+            'fixme': ",".join(self._fixme),
+        })
+
+    @staticmethod
+    def from_JSON(self, obj):
+        ret = Address(
+            housenumber = obj['addr:housenumber'],
+            postcode    = obj['addr:postcode'],
+            street      = obj['addr:street'],
+            city        = obj['addr:city'],
+            sym_ul      = obj['teryt:symul'],
+            simc        = obj['teryt:simc'],
+            source      = obj['addr:source'],
+            location    = obj['location'])
+        if obj.get('fixme'):
+            ret.addFixme(obj['fixme'])
+        return ret
 
 class AbstractImport(object):
     __log = logging.getLogger(__name__).getChild('AbstractImport')
