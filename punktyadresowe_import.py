@@ -132,7 +132,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             node.append(ret.new_tag('tag', k='addr:place', v=self.city))
 
         node.append(ret.new_tag('tag', k='addr:simc', v=self.simc))
-        node.append(ret.new_tag('tag', k='addr:source', v=self.source))
+        node.append(ret.new_tag('tag', k='source:addr', v=self.source))
         if self._fixme:
             node.append(ret.new_tag('tag', k='fixme', v=" ".join(self.fixme)))
         return node
@@ -149,20 +149,20 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         return "%s, %s" % (self.city, self.housenumber)
 
     def to_JSON(self):
-        return json.dumps({
+        return {
             'addr:housenumber': self.housenumber,
             'addr:postcode': self.postcode,
             'addr:street': self.street,
             'addr:city': self.city,
             'teryt:sym_ul': self.sym_ul,
             'teryt:simc': self.simc,
-            'addr:source': self.source,
+            'source:addr': self.source,
             'location': self.location,
             'fixme': ",".join(self._fixme),
-        })
+        }
 
     @staticmethod
-    def from_JSON(self, obj):
+    def from_JSON(obj):
         ret = Address(
             housenumber = obj['addr:housenumber'],
             postcode    = obj['addr:postcode'],
@@ -170,7 +170,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             city        = obj['addr:city'],
             sym_ul      = obj['teryt:symul'],
             simc        = obj['teryt:simc'],
-            source      = obj['addr:source'],
+            source      = obj['source:addr'],
             location    = obj['location'])
         if obj.get('fixme'):
             ret.addFixme(obj['fixme'])
@@ -461,6 +461,11 @@ class GUGiK(AbstractImport):
                 raise ValueError('No data returned from GUGiK possibly to wrong scale. Check __MAX_BBOX_X, __MAX_BBOX_Y, HEIGHT and WIDTH')
         return ret
     
+class AddressEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Address):
+            return obj.to_JSON()
+        return json.JSONEncoder.default(self, obj)
 
 def main():
     parser = argparse.ArgumentParser(description="Downloads data from iMPA and saves in OSM or JSON format. CC-BY-SA 3.0 @ WiktorN. Filename is <gmina>.osm or <gmina>.json")
@@ -489,7 +494,7 @@ def main():
     else:
         rets = [imp_gen().fetchTiles(),]
     if args.output_format == 'json':
-        write_conv_func = lambda x: json.dumps(list(x))
+        write_conv_func = lambda x: json.dumps(list(x), cls=AddressEncoder)
         file_suffix = '.json'
     else:
         write_conv_func = convertToOSM
