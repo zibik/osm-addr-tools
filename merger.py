@@ -383,12 +383,12 @@ def mergeAddr(node, addr):
         node.append(tag)
     # mark for deletion
     if int(addr['id']) < 0:
-        __log.info("Merging addr %s with building. Removing address node: %s:%s", nodestr(node), addr.name, addr['id'])
+        __log.debug("Merging addr %s with building. Removing address node: %s:%s", nodestr(node), addr.name, addr['id'])
         addr['action'] = 'delete'
         addr.extract()
     else:
         # TODO - check if the addr node is used in ways - if so, remove addr tags
-        __log.info("Merging addr %s with building. Marking address node for deletion: %s:%s", nodestr(node), addr.name, addr['id'])
+        __log.debug("Merging addr %s with building. Marking address node for deletion: %s:%s", nodestr(node), addr.name, addr['id'])
         addr['action'] = 'delete'
     __log.debug(node)
     __log.debug(addr)
