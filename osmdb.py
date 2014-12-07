@@ -1,6 +1,7 @@
 from rtree import index
 from bs4 import BeautifulSoup
 from shapely.geometry import Point, Polygon
+import utils
 
 
 
@@ -34,7 +35,7 @@ def _getAddr(soup):
     
 
 class OsmDb(object):
-    def __init__(self, osmdata, keyfunc=lambda x: x):
+    def __init__(self, osmdata, valuefunc=lambda x: x, indexes={}):
         # assume osmdata is a BeautifulSoup object already
         # do it an assert
         if isinstance(osmdata, BeautifulSoup):
@@ -44,30 +45,42 @@ class OsmDb(object):
         self.__keyfunc = keyfunc
         self.__index = index.Index()
         self.__index_entries = {}
-        self.__addr_index = {}
         self.__nodes = {}
         self.__ways = {}
+        self.__custom_indexes = dict((x, {}) for x in indexes.keys())
 
         for i in soup.osm.find_all(['node', 'way', 'relation'], recursive=False):
             _id = _getId(i)
             pos = self.__getPos(i)
             if pos:
                 self.__index.insert(_id, pos)
-                self.__index_entries[_id] = i
-                if i.find(k="addr:housenumber"):
-                    key = tuple(keyfunc(x) if x else x for x in _getAddr(i))
-                    if key:
-                        lst = self.__addr_index.get(key)
-                        if not lst:
-                            lst = []
-                            self.__addr_index[key] = lst
-                        lst.append(i)
-            
+                val = valuefunc(i)
+                self.__index_entries[_id] = val
+
+                for i in indexes.keys():
+                    custom_index = self.__custom_indexes[i]
+                    key = indexes[i](val)
+                    try:
+                        entry = custom_index[key]
+                    except KeyError:
+                        entry = []
+                        custom_index[key] = entry
+                    entry.append(val)
+
             if i.name=='node':
                 self.__nodes[i['id']] = i
 
             if i.name=='way':
                 self.__ways[i['id']] = i
+
+        for i in indexes.keys():
+            def getfromindex(self, key):
+                return self.__custom_indexes[i][key]
+            def getallindexed(self):
+                return tuple(self.__custom_indexes[i].keys())
+
+            setattr(self, 'getby' + i, getfromindex)
+            setattr(self, 'getall' + i, getallindexed)
 
     def __getPos(self, soup):
         """Extracts position for way/node as bounding box"""
@@ -96,13 +109,6 @@ class OsmDb(object):
         return map(self.__index_entries.get, 
                    self.__index.nearest(point * 2, num_results)
                )
-    def getbyaddress(self, key):
-        key = tuple(self.__keyfunc(x) if x else x for x in key)
-        key = key[:2] + (key[2].replace(' ',''),)
-        return self.__addr_index.get(key, [])
-
-    def getalladdresses(self):
-        return list(self.__addr_index.keys())
 
     def getShape(self, soup):
         if soup.name == 'node':
@@ -121,8 +127,8 @@ class OsmDb(object):
                                                     (x['role'] == 'outer' or not x.get('role')))
                     )
             
-            way_by_first_node = createDictOfList((x.find('nd')['ref'], x) for x in outer)
-            way_by_last_node = createDictOfList((x.find_all('nd')[-1]['ref'], x) for x in outer)
+            way_by_first_node = utils.groupby((x.find('nd')['ref'], x) for x in outer)
+            way_by_last_node = utils.groupby((x.find_all('nd')[-1]['ref'], x) for x in outer)
             ret = []
             cur_elem = outer[0]
             node_ids = []
@@ -166,16 +172,6 @@ class OsmDb(object):
 
             return Polygon(ret)
                 
-def createDictOfList(lst):
-    ret = {}
-    for (k, v) in lst:
-        try:
-            entry = ret[k]
-        except KeyError:
-            entry = []
-            ret[k] = entry
-        entry.append(v)
-    return ret
 def main():
     odb = OsmDb(open("adresy.osm").read())
     print(list(odb.nearest((53.5880600, 19.5555200), 10)))
