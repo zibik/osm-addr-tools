@@ -7,7 +7,7 @@
 #
 # dependencies:
 # Beautiful-Soup (http://www.crummy.com/software/BeautifulSoup/)
-#       pip install beautifulsoup4 
+#       pip install beautifulsoup4
 #       easy_install beautifulsoup4
 #       apt-get install python-beautifulsoup4
 #       portmaster www/py-beautifulsoup
@@ -50,7 +50,7 @@ from utils import parallel_execution, groupby
 __log = logging.getLogger(__name__)
 # User-Agent dla requestów
 __opener = urequest.build_opener()
-__headers = { 
+__headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2',
 }
 __opener.addheaders = __headers.items()
@@ -64,7 +64,7 @@ __EPSG2180 = pyproj.Proj(init="epsg:2180")
 
 def wgsTo2180(lon, lat):
     # returns lon,lat
-    return pyproj.transform(__WGS84, __EPSG2180, lon, lat)   
+    return pyproj.transform(__WGS84, __EPSG2180, lon, lat)
 
 def e2180toWGS(lon, lat):
     # returns lon,lat
@@ -248,17 +248,17 @@ out;
         raise NotImplementedError("")
 
     def _checkDuplicatesInImport(self, data):
-        addr_index = groupby(data, lambda x: tuple(x.city, x.housenumber, x.street))
-            
+        addr_index = groupby(data, lambda x: (x.city, x.housenumber, x.street))
+
         for (addr, occurances) in filter(lambda x: len(x[1]) > 1, addr_index.items()):
             self.__log.warning("Duplicte addresses in import: %s", addr)
             for i in occurances:
                 i.addFixme('Duplicate address in import')
-                
+
 
     def _checkMixedScheme(self, data):
-        dups = groupby(data, lambda x: bool(x.street))
-        
+        dups = groupby(data, lambda x: x.simc, lambda x: bool(x.street))
+
         dups_count = dict((k, len(_filterOnes(v))) for k, v in dups.items())
         dups = dict((k, len(_filterOnes(v))/len(v)) for k, v in dups.items())
         dups = dict((k,v) for k, v in filter(lambda x: 0 < x[1] and x[1] < 1, dups.items()))
@@ -266,14 +266,11 @@ out;
         for i in filter(
                 lambda x: not bool(x.street),
                 filter(
-                    lambda x: x.simc in dups.keys(), 
+                    lambda x: x.simc in dups.keys(),
                     data
                     )
                 ):
             i.addFixme('Mixed addressing scheme in city - with streets and without. %.1f%% (%d) with streets.' % (dups[i['teryt:simc']]*100, dups_count[i['teryt:simc']]))
-
-        return dct
-
 
     def getAddresses(self):
         data = self.fetchTiles()
@@ -307,7 +304,7 @@ class iMPA(AbstractImport):
         self.__log.info(url)
         data = urlopen(url).read().decode('utf-8')
         init_data = json.loads(data)
-        
+
         self.setBboxFrom2180(init_data['spatialExtent'])
         self.terc = init_data['teryt']
 
@@ -340,7 +337,7 @@ class iMPA(AbstractImport):
             'X': pointx,
             'Y': pointy,
         }
-        
+
         josm_wms = {
             'VERSION': '1.1.1',
             'SERVICE': 'WMS',
@@ -348,7 +345,7 @@ class iMPA(AbstractImport):
             'LAYERS': layer,
             'FORMAT': 'image/png',
             'TRANSPARENT': 'true',
-        }    
+        }
 
         #TODO: do proper URL parsing
         if '?' in wms_addr:
@@ -397,7 +394,7 @@ class iMPA(AbstractImport):
 
     def fetchTiles(self):
         html = self.fetchPoint(
-            self.wms, 
+            self.wms,
             *self.getBbox2180(),
             pointx=0, pointy=0 # sprawdź punkt (0,0) i tak powinno zostać zwrócone wszystko
         )
@@ -424,7 +421,7 @@ class GUGiK(AbstractImport):
              y / GUGiK.__PRECISION,
             min(x / GUGiK.__PRECISION + GUGiK.__MAX_BBOX_X, maxx),
             min(y / GUGiK.__PRECISION + GUGiK.__MAX_BBOX_Y, maxy))
-            for x in range(math.floor(minx * GUGiK.__PRECISION), math.ceil(maxx * GUGiK.__PRECISION), GUGiK.__MAX_BBOX_X * GUGiK.__PRECISION) 
+            for x in range(math.floor(minx * GUGiK.__PRECISION), math.ceil(maxx * GUGiK.__PRECISION), GUGiK.__MAX_BBOX_X * GUGiK.__PRECISION)
             for y in range(math.floor(miny * GUGiK.__PRECISION), math.ceil(maxy * GUGiK.__PRECISION), GUGiK.__MAX_BBOX_Y * GUGiK.__PRECISION)
         ]
 
@@ -468,7 +465,7 @@ class GUGiK(AbstractImport):
             # do not report anything about this, this is normal
             return False
         return True
-        
+
     def fetchTiles(self):
         bbox = self.getBbox2180()
         ret = []
@@ -485,7 +482,7 @@ class GUGiK(AbstractImport):
             else:
                 raise ValueError('No data returned from GUGiK possibly to wrong scale. Check __MAX_BBOX_X, __MAX_BBOX_Y, HEIGHT and WIDTH')
         return ret
-    
+
 class AddressEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Address):
@@ -514,10 +511,10 @@ def main():
     else:
         imp_gen = partial(GUGiK, terc=args.terc)
     if args.gmina:
-        rets = parallel_execution(*map(lambda x: lambda: imp_gen(x).fetchTiles(), args.gmina))
+        rets = parallel_execution(*map(lambda x: lambda: imp_gen(x).getAddresses(), args.gmina))
         #rets = list(map(lambda x: impa_gen(x).fetchTiles(), args.gmina)) # usefull for debugging
     else:
-        rets = [imp_gen().fetchTiles(),]
+        rets = [imp_gen().getAddresses(),]
     if args.output_format == 'json':
         write_conv_func = lambda x: json.dumps(list(x), cls=AddressEncoder)
         file_suffix = '.json'
