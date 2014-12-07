@@ -11,7 +11,7 @@ def parallel_execution(*args):
         )
     )
 
-def groupby(lst, keyfunc):
+def groupby(lst, keyfunc=lambda x: x, valuefunc=lambda x: x):
     ret = {}
     for i in lst:
         key = keyfunc(i)
@@ -20,7 +20,7 @@ def groupby(lst, keyfunc):
         except KeyError:
             entry = []
             ret[key] = entry
-        entry.append(i)
+        entry.append(valuefunc(i))
     return ret
 
 def main():
