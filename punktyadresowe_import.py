@@ -119,6 +119,9 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     def addFixme(self, value):
         self._fixme.append(value)
 
+    def getFixme(self):
+        return ",".join(self._fixme)
+
     def asOsmSoup(self, node_id):
         ret = BeautifulSoup("", "xml")
         node = ret.new_tag('node', id=node_id, action='modify', visible='true', lat=self.location['lat'], lon=self.location['lon'])
@@ -140,13 +143,35 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     def osOsmXML(self, node_id):
         return asOsmSoup.prettify()
 
-    def getPoint(self):
-        return Point(tuple(map(float, (self.location['lat'], self.location['lon']))))
+    def getLatLon(self):
+        return tuple(map(float, (self.location['lat'], self.location['lon'])))
+
+    def get_point(self):
+        return Point(self.getLatLon())
+
+    @property
+    def center(self):
+        return self.get_point()
+
+    def similar_to(other):
+        ret = True
+        ret &= (other.housenumber.upper().replace(' ', '') == self.housenumber.upper().replace(' ', ''))
+        if self.simc and other.simc and self.simc == other.simc:
+            ret &= True
+        else:
+            ret &= (other.city == self.city)
+        if self.sym_ul and other.sym_ul:
+            ret &= (self.sym_ul == other.sym_ul)
+            # skip comparing street names, might be a bit different
+        return ret
 
     def __str__(self):
         if self.street:
             return "%s, %s, %s" % (self.city, self.street, self.housenumber)
         return "%s, %s" % (self.city, self.housenumber)
+
+    def get_index_key(self):
+        return tuple(map(str.upper, (self.city.strip(), self.street.strip(), self.housenumber.replace(' ', ''))))
 
     def to_JSON(self):
         return {
@@ -165,11 +190,11 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     def from_JSON(obj):
         ret = Address(
             housenumber = obj['addr:housenumber'],
-            postcode    = obj['addr:postcode'],
-            street      = obj['addr:street'],
-            city        = obj['addr:city'],
-            sym_ul      = obj['teryt:symul'],
-            simc        = obj['teryt:simc'],
+            postcode    = obj.get('addr:postcode'),
+            street      = obj.get('addr:street'),
+            city        = obj.get('addr:city'),
+            sym_ul      = obj.get('teryt:symul'),
+            simc        = obj.get('teryt:simc'),
             source      = obj['source:addr'],
             location    = obj['location'])
         if obj.get('fixme'):
@@ -439,7 +464,7 @@ class GUGiK(AbstractImport):
         if '?' in addr.housenumber or 'bl' in addr.housenumber:
             self.__log.info('Ignoring address %s because has strange housenumber: %s', addr, addr.housenumber)
             return False
-        if not addr.getPoint().within(self.shape):
+        if not addr.get_point().within(self.shape):
             # do not report anything about this, this is normal
             return False
         return True
