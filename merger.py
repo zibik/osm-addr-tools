@@ -169,7 +169,7 @@ class OsmAddress(Address):
         return self._soup['id'] < 0
 
     def get_tag_soup(self):
-        return self._soup.find('tag')
+        return self._soup.find_all('tag')
 
     def updateFrom(self, entry):
         ret = False
@@ -511,6 +511,7 @@ class Merger(object):
         self._merge_addresses_buffer(10)
 
     def _merge_one_address(self, building, addr):
+        # as we merge only address nodes, do not pass anything else
         for tag in addr.get_tag_soup():
             building.append(tag)
         self.set_state(addr, 'delete')
@@ -535,7 +536,7 @@ class Merger(object):
                     self.__log.info("Skipping merging address: %s, as building already has an address: %s.", nodes[0], nodestr(building))
                     self._mark_soup_visible(nodes[0])
                 else:
-                    self.__log.debug("Merging address %s with building", str(nodes[0]))
+                    self.__log.debug("Merging address %s with building %s", str(nodes[0].entry), _id)
                     self._merge_one_address(building, nodes[0])
 
             if len(nodes) > 1:
@@ -546,6 +547,7 @@ class Merger(object):
         ret = {}
         for node in self.asis.find_all(lambda x: x.get('action') != 'delete' and x.name == 'node' and x.find('tag', k='addr:housenumber')):
             addr = self.osmdb.getbyid("%s:%s" % (node.name, node['id']))[0]
+            self.__log.debug("Looking for candidates for: %s", str(addr.entry))
             if addr.only_address_node() and addr.state != 'delete':
                 candidates = list(self.osmdb.nearest(addr.center, num_results=10))
                 candidates_within = list(
@@ -572,6 +574,7 @@ class Merger(object):
                             lst = []
                             ret[c.osmid] = lst
                         lst.append(addr)
+                        self.__log.debug("Found: %s", c.osmid)
         return ret
 
     def get_incremental_result(self, logIO=None):
