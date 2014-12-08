@@ -170,6 +170,14 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             return "%s, %s, %s" % (self.city, self.street, self.housenumber)
         return "%s, %s" % (self.city, self.housenumber)
 
+    def __repr__(self):
+         return type(self).__name__ + ", ".join(
+                                      "%s=%s" % (x, getattr(self, x)) for x in (
+                                                        'housenumber', 'postcode',
+                                                        'street', 'city', 'sym_ul',
+                                                        'simc', 'source', 'location')
+         )
+
     def get_index_key(self):
         return tuple(map(str.upper, (self.city.strip(), self.street.strip(), self.housenumber.replace(' ', ''))))
 
