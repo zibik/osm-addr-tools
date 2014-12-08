@@ -55,6 +55,8 @@ class OsmAddress(Address):
         fixme = _getVal('fixme')
         if fixme:
             ret.addFixme(fixme)
+        if obj.get('action'):
+            self.state = obj['action']
         return ret
 
     @staticmethod
@@ -233,6 +235,7 @@ class Merger(object):
         self.post_func = []
         self._soup_visible = []
         self._import_area_shape = get_boundary_shape(terc)
+        self._state_changes = []
 
     def _create_index(self):
         self._get_all_changed_nodes() # update everything in html, before we dump OsmAddress objects
@@ -246,6 +249,10 @@ class Merger(object):
         self._do_merge()
         self.__log.debug("Starting postmerge functinos")
         self._post_merge()
+
+    def set_state(self, node, value):
+        self._state_changes.append(node)
+        node.set_state(value)
 
     def _pre_merge(self):
         for entry in self.impdata:
@@ -288,7 +295,7 @@ class Merger(object):
             # all the others mark for deletion
             if len(emuia_nodes)>1:
                 for node in emuia_nodes[1:]:
-                    node.set_state('delete')
+                    self.set_state(node, 'delete')
 
     def _do_merge(self):
         for entry in self.impdata:
@@ -326,7 +333,7 @@ class Merger(object):
                             # ignore the distance, if the point is within the node
                             self.__log.warning("Address (id=%s:%s) %s is %d meters from imported point", node.osmid, entry, dist)
                             node.addFixme("Node is %d meters away from imported point"  % dist)
-                    node.set_state('visible')
+                    self.set_state(node, 'visible')
                 if min(x[0] for x in existing) > 50:
                     if any(map(lambda x: x[1].objtype in ('way', 'relation') and x.contains(entry.center), existing)):
                         # if any of existing addreses is a way/relation within which we have our address
@@ -409,19 +416,39 @@ class Merger(object):
         self._new_nodes.append(OsmAddress.from_address(entry, node))
         self.asis.osm.append(node)
 
-    def _mark_soup_visible(self, _id):
-        self._soup_visible.append(_id)
+    def _mark_soup_visible(self, obj):
+        self._soup_visible.append(obj)
 
     def _get_node_id(self):
         self._node_id -= 1
         return self._node_id
 
     def _get_all_changed_nodes(self):
-        ret = set(x.osmid for x in self._updated_nodes).union(
-            x.osmid for x in self._new_nodes).union(
-            x.osmid for x in self.osmdb.get_all_values() if x.changed or x.state in ('modify', 'delete'))
+        for i in self.osmdb.get_all_values():
+            if i in self._updated_nodes:
+                self.__log.debug("Processing updated node: %s", i.entry)
+            elif i in self._new_nodes:
+                self.__log.debug("Processing new node: %s", i.entry)
+            elif i.changed or i.state in ('modify', 'delete'):
+                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, i.entry)
 
-        return tuple(map(lambda x: x.to_osm_soup(), itertools.chain.from_iterable(map(lambda x: self.osmdb.getbyid(x), ret))))
+        ret = dict((x.osmid,x) for x in self._updated_nodes)
+        ret.update(dict((x.osmid, x) for x in self._new_nodes))
+        ret.update(dict((x.osmid, x) for x in self._state_changes))
+        self.__log.info("Length of ret: %d", len(ret))
+        ret.update(dict((x.osmid, x) for x in self.osmdb.get_all_values() if x.changed or x.state in ('modify', 'delete')))
+        self.__log.info("Length of ret after get_all_values: %d", len(ret))
+    
+        for _id in ret:
+            i = self.osmdb.getbyid(_id)[0]
+            if i in self._updated_nodes:
+                self.__log.debug("Processing updated node: %s", i.entry)
+            elif i in self._new_nodes:
+                self.__log.debug("Processing new node: %s", i.entry)
+            elif i.changed or i.state in ('modify', 'delete'):
+                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, i.entry)
+
+        return tuple(map(lambda x: x.to_osm_soup(), ret.values()))
 
     def _get_all_visible(self):
         return tuple(map(lambda x: self.osmdb.getbyid(x)[0].to_osm_soup(), self._soup_visible))
@@ -493,7 +520,7 @@ class Merger(object):
     def _merge_one_address(self, building, addr):
         for tag in addr.get_tag_soup():
             building.append(tag)
-        addr.set_state('delete')
+        self.set_state(addr, 'delete')
         self._updated_nodes.append(self.osmdb.getbyid("%s:%s" % (building.name, building['id']))[0])
 
     def _merge_addresses_buffer(self, buf=0):
@@ -508,18 +535,18 @@ class Merger(object):
         for (_id, nodes) in to_merge.items():
             building = buildings[_id]
             if len(nodes) > 0:
-                self._mark_soup_visible(_id)
+                self._mark_soup_visible(self.osmdb.getbyid(_id))
 
             if len(nodes) == 1:
                 if building.find('tag', k='addr:housenumber'):
                     self.__log.info("Skipping merging address: %s, as building already has an address: %s.", nodes[0], nodestr(building))
-                    self._mark_soup_visible(nodes[0].osmid)
+                    self._mark_soup_visible(nodes[0])
                 else:
                     self._merge_one_address(building, nodes[0])
 
             if len(nodes) > 1:
                 for node in nodes:
-                    self._mark_soup_visible(node.osmid)
+                    self._mark_soup_visible(node)
 
     def _prepare_merge_list(self, buf):
         ret = {}
@@ -543,7 +570,7 @@ class Merger(object):
                 if candidates_within:
                     c = candidates_within[0]
                     if c.housenumber:
-                        c.set_state('visible')
+                        self.set_state(c, 'visible')
                     else:
                         try:
                             lst = ret[c.osmid]
