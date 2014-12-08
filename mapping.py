@@ -605,7 +605,7 @@ def mapstreet(strname, symul):
 
     try:
         ret = checkAndAddCecha(addr_map[strname])
-        __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa, symul))
+        __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa if teryt_entry else 'N/A', symul))
         return ret
     except KeyError:
         try:
