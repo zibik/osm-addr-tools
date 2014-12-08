@@ -611,11 +611,11 @@ def mapstreet(strname, symul):
         try:
             ret = __mapping_symul[symul]
             if len(ret) > 1:
-                __log.info("Inconsitent mapping for teryt:sym_ul = %s. Original value: %s, TERYT: %s, OSM values: %s. Leaving original value.", symul, strname, __teryt_ulic.get(symul).nazwa,  ", ".join(ret))
+                __log.info("Inconsitent mapping for teryt:sym_ul = %s. Original value: %s, TERYT: %s, OSM values: %s. Leaving original value.", symul, strname, teryt_entry.nazwa if teryt_entry else 'N/A',  ", ".join(ret))
                 return strname
             ret = checkAndAddCecha(ret[0])
             if ret != strname:
-                __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, __teryt_ulic.get(symul).nazwa, symul))
+                __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa if teryt_entry else 'N/A', symul))
             return ret
         except KeyError:
             return checkAndAddCecha(strname)
