@@ -227,7 +227,7 @@ class Merger(object):
             self.asis = asis
         else:
             self.asis = BeautifulSoup(asis)
-        self.osmdb = OsmDb(asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
+        self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
         self._new_nodes = []
         self._updated_nodes = []
         self._node_id = 0
@@ -424,33 +424,23 @@ class Merger(object):
         return self._node_id
 
     def _get_all_changed_nodes(self):
-        for i in self.osmdb.get_all_values():
-            if i in self._updated_nodes:
-                self.__log.debug("Processing updated node: %s", i.entry)
-            elif i in self._new_nodes:
-                self.__log.debug("Processing new node: %s", i.entry)
-            elif i.changed or i.state in ('modify', 'delete'):
-                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, i.entry)
-
         ret = dict((x.osmid,x) for x in self._updated_nodes)
         ret.update(dict((x.osmid, x) for x in self._new_nodes))
+        self.__log.info("Modified objects: %d", len(ret))
         ret.update(dict((x.osmid, x) for x in self._state_changes))
-        self.__log.info("Length of ret: %d", len(ret))
-        ret.update(dict((x.osmid, x) for x in self.osmdb.get_all_values() if x.changed or x.state in ('modify', 'delete')))
-        self.__log.info("Length of ret after get_all_values: %d", len(ret))
     
         for (_id, i) in ret.items():
             if i in self._updated_nodes:
-                self.__log.debug("Processing updated node: %s", i)
+                self.__log.debug("Processing updated node: %s", str(i))
             elif i in self._new_nodes:
-                self.__log.debug("Processing new node: %s", i)
+                self.__log.debug("Processing new node: %s", str(i))
             elif i.changed or i.state in ('modify', 'delete'):
-                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, i)
+                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, str(i))
 
         return tuple(map(lambda x: x.to_osm_soup(), ret.values()))
 
     def _get_all_visible(self):
-        return tuple(map(lambda x: self.osmdb.getbyid(x)[0].to_osm_soup(), self._soup_visible))
+        return tuple(map(lambda x: x.to_osm_soup(), self._soup_visible))
 
     def _get_all_reffered_by(self, lst):
         ret = set()
@@ -500,7 +490,11 @@ class Merger(object):
         # TODO - check for within terc
         imp_addr = set(map(lambda x: x.get_index_key(), self.impdata))
         # from all addresses in OsmDb remove those imported
-        to_delete = set(self.osmdb.getalladdress()) - imp_addr
+        to_delete = set(filter(
+            lambda x: any(
+                map(lambda y: self._import_area_shape.contains(y.center), self.osmdb.getbyaddress(x))
+            ),
+            self.osmdb.getalladdress())) - imp_addr
 
         self.__log.debug("Marking %d not existing addresses", len(to_delete))
         for addr in to_delete:
@@ -534,7 +528,7 @@ class Merger(object):
         for (_id, nodes) in to_merge.items():
             building = buildings[_id]
             if len(nodes) > 0:
-                self._mark_soup_visible(self.osmdb.getbyid(_id))
+                self._mark_soup_visible(self.osmdb.getbyid(_id)[0])
 
             if len(nodes) == 1:
                 if building.find('tag', k='addr:housenumber'):
