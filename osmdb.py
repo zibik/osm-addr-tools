@@ -2,6 +2,7 @@ from rtree import index
 from bs4 import BeautifulSoup
 from shapely.geometry import Point, Polygon
 import utils
+import logging
 
 
 
@@ -66,6 +67,7 @@ class OsmDbEntry(object):
         return self.shape.contains(other)
 
 class OsmDb(object):
+    __log = logging.getLogger(__name__).getChild('OsmDb')
     def __init__(self, osmdata, valuefunc=lambda x: x, indexes={}):
         # assume osmdata is a BeautifulSoup object already
         # do it an assert
@@ -93,6 +95,8 @@ class OsmDb(object):
         self.update_index()
 
     def update_index(self):
+        self.__log.debug("Recreating index")
+
         self.__index = index.Index()
         self.__index_entries = {}
         self.__osm_obj = {}
@@ -150,13 +154,13 @@ class OsmDb(object):
                                                     (x['role'] == 'outer' or not x.get('role')))
                     )
             
-            way_by_first_node = utils.groupby(outer, lambda x: x.find('nd')['ref'])
-            way_by_last_node = utils.groupby(outer, lambda x: x.find_all('nd')[-1]['ref'])
+            way_by_first_node = utils.groupby(outer, lambda x: x._raw.find('nd')['ref'])
+            way_by_last_node = utils.groupby(outer, lambda x: x._raw.find_all('nd')[-1]['ref'])
             ret = []
             cur_elem = outer[0]
             node_ids = []
             while outer:
-                ids = list(y['ref'] for y in cur_elem.find_all('nd', recursive=False))
+                ids = list(y['ref'] for y in cur_elem._raw.find_all('nd', recursive=False))
                 if not node_ids:
                     node_ids.extend(ids)
                 else:
