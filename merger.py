@@ -97,7 +97,7 @@ class OsmAddress(Address):
     def center(self):
         node = self._soup
         try:
-            return tuple(map(float, (node['lat'], node['lon'])))
+            return Point(float(node['lon']), float(node['lat']))
         except KeyError:
             b = node.bounds
             return Point( 
@@ -199,7 +199,7 @@ class OsmAddress(Address):
 
             ret |= self._setTagVal('addr:housenumber', self.housenumber)
 
-            if self._fixme:
+            if self.getFixme():
                 ret |= self._setTagVal('fixme', self.getFixme())
 
             if ret:
@@ -229,31 +229,35 @@ class Merger(object):
         self._new_nodes = []
         self._updated_nodes = []
         self._node_id = 0
-        self._pre_merges = []
-        self._post_merges = []
+        self.pre_func = []
+        self.post_func = []
         self._soup_visible = []
         self._import_area_shape = get_boundary_shape(terc)
 
     def _create_index(self):
+        self._get_all_changed_nodes() # update everything in html, before we dump OsmAddress objects
         self.osmdb.update_index()
 
     def merge(self):
+        self.__log.debug("Starting premerger functinos")
         self._pre_merge()
         self._create_index()
+        self.__log.debug("Starting merge functinos")
         self._do_merge()
+        self.__log.debug("Starting postmerge functinos")
         self._post_merge()
 
     def _pre_merge(self):
         for entry in self.impdata:
             self._fix_similar_addr(entry)
-            tuple(map(lambda x: x(self, entry), self._pre_merges))
+            tuple(map(lambda x: x(self, entry), self.pre_func))
 
     def _fix_similar_addr(self, entry):
         # look for near same address
         # change street names to values from OSM
         # change housenumbers to values from import
         try:
-            node = next(filter(lambda x: entry.similar_to(x), self.osmdb.nearest(entry.get_point(), num_results=10)))
+            node = next(filter(lambda x: entry.similar_to(x), self.osmdb.nearest(entry.center, num_results=10)))
             how_far = node.distance(entry)
             if node and node.street and entry.street and node.street != entry.street and \
                 ((node.objtype == 'node' and how_far < 5.0) or (node.objtype == 'way' and (node.contains(entry.center) or how_far < 10.0))):
@@ -261,7 +265,7 @@ class Merger(object):
                 self.__log.warning("Changing street name from %s in import to %s as in OSM (%s), distance=%.2fm",
                         entry.street, node.street, node.osmid, how_far)
                 # update street name based on OSM data
-                entry.addFixme('Old street name %s' % (entry.street,))
+                entry.addFixme('Street name in import source: %s' % (entry.street,))
                 entry.street = node.street
             if node and node.street == entry.street and node.city == entry.city and node.housenumber != entry.housenumber and \
                 ((node.objtype == 'node' and how_far < 5.0) or (node.objtype == 'way' and (node.contains(entry.center) or how_far < 10.0))):
@@ -291,8 +295,10 @@ class Merger(object):
             self._do_merge_one(entry)
 
     def _do_merge_one(self, entry):
+        self.__log.debug("Processing address: %s", entry)
         return any(map(lambda x: x(entry),
             (
+                # first returning true will stop exection of the chain
                 self._do_merge_by_existing,
                 self._do_merge_by_within,
                 self._do_merge_by_nearest,
@@ -301,10 +307,8 @@ class Merger(object):
         ))
 
     def _do_merge_by_existing(self, entry):
-        self.__log.debug("Processing address: %s", entry)
-        entry_point = entry.getLatLon()
-
         existing = self.osmdb.getbyaddress(entry.get_index_key())
+        self.__log.debug("Found %d same addresses", len(existing))
         # create tuples (distance, entry) sorted by distance
         existing = sorted(map(lambda x: (x.distance(entry), x), existing), key=lambda x: x[0])
         if existing:
@@ -329,6 +333,7 @@ class Merger(object):
                         # then skip
                         pass
                     else:
+                        self.__log.debug("Creating address node, as closest address is farther than 50m")
                         self._create_point(entry)
                         return True
             # update data only on first duplicate, rest - leave to OSM-ers
@@ -338,19 +343,23 @@ class Merger(object):
 
     def _do_merge_by_within(self, entry):
         # look for building nearby
-        candidates = list(self.osmdb.nearest(entry.get_point(), num_results=10))
-
+        candidates = list(self.osmdb.nearest(entry.center, num_results=10))
         candidates_within = list(filter(lambda x: x.objtype in ('way', 'relation') and x.contains(entry.center), candidates))
+
+        self.__log.debug("Found %d buildings containing address", len(candidates_within))
+
         if candidates_within:
             c = candidates_within[0]
-            if not c.housenumber:
+            if c.housenumber:
                 # no address on way/relation -> add address
                 # create a point, will be merged with building later
+                self.__log.debug("Creating address node as building contains address")
                 self._create_point(entry)
                 return True
             else:
                 # WARNING - candidate has an address
                 if c.similar_to(entry) and c.street == entry.street:
+                    self.__log.debug("Updating OSM address: %s with import %s", c.entry, entry)
                     self._update_node(c, entry)
                     return True
                 else:
@@ -363,17 +372,20 @@ class Merger(object):
         return False
 
     def _do_merge_by_nearest(self, entry):
-        candidates = list(self.osmdb.nearest(entry.get_point(), num_results=10))
+        candidates = list(self.osmdb.nearest(entry.center, num_results=10))
         candidates_same = list(filter(lambda x: x.housenumber == entry.housenumber and \
             x.distance(entry) < 2.0, candidates))
         if len(candidates_same) > 0:
             # same location, both are an address, and have same housenumber, can't be coincidence,
             # probably mapper changed something
-            if any(filter(lambda x: x.similar_to(entry), candidates_same)):
-                for node in candidates_same:
+            for node in candidates_same:
+                found = False
+                if node.similar_to(entry):
+                    found = True
+                    self.__log.debug("Updating near node from: %s to %s", node.entry, entry)
                     self._update_node(node, entry)
-                return True
-
+                if found:
+                    return True
             self.__log.info("Found probably same address node at (%s, %s). Skipping. Import address is: %s, osm addresses: %s",
                 entry.location['lon'], entry.location['lat'], entry, ", ".join(map(str, candidates_same))
             )
@@ -385,10 +397,12 @@ class Merger(object):
         return True
 
     def _update_node(self, node, entry):
+        self.__log.debug("Updating node %s using %s", node.osmid, entry)
         node.updateFrom(entry)
         self._updated_nodes.append(node)
 
     def _create_point(self, entry):
+        self.__log.debug("Creating new point")
         ret = BeautifulSoup()
         node = ret.new_tag(name='node', id=self._get_node_id(), action='modify',
             lat=entry.location['lat'], lon=entry.location['lon'])
@@ -405,12 +419,20 @@ class Merger(object):
     def _get_all_changed_nodes(self):
         ret = set(x.osmid for x in self._updated_nodes).union(
             x.osmid for x in self._new_nodes).union(
-            x.osmid for x in self.osmdb.get_all_values() if x.changed or x.state)
+            x.osmid for x in self.osmdb.get_all_values() if x.changed or x.state in ('modify', 'delete'))
 
         return tuple(map(lambda x: x.to_osm_soup(), itertools.chain.from_iterable(map(lambda x: self.osmdb.getbyid(x), ret))))
 
+    def _get_all_visible(self):
+        return tuple(map(lambda x: self.osmdb.getbyid(x)[0].to_osm_soup(), self._soup_visible))
+
     def _get_all_reffered_by(self, lst):
         ret = set()
+        def getbyid(key):
+            ret = self.osmdb.getbyid(key)
+            if not ret:
+                raise ValueError("No object found for key: %s" % (key,))
+            return ret
         def get_reffered(node):
             if node.name == 'node':
                 return set((('node', node['id']),))
@@ -422,7 +444,7 @@ class Merger(object):
                     (('way', node['id']),)
                 )
             if node.name == 'member':
-                return get_reffered(self.osmdb.getbyid((node['type'], node['ref'])))
+                return get_reffered(getbyid("%s:%s" % (node['type'], node['ref']))[0].to_osm_soup())
             if node.name == 'relation':
                 return itertools.chain(
                     itertools.chain.from_iterable(map(get_reffered, node.find_all('member'))),
@@ -434,35 +456,35 @@ class Merger(object):
             ret = ret.union(get_reffered(i))
 
         return tuple(map(
-            lambda x: self.osmdb.getbyid("%s:%s" % (x[0], x[1]))[0].to_osm_soup(),
+            lambda x: getbyid("%s:%s" % (x[0], x[1]))[0].to_osm_soup(),
             ret
         ))
 
     def _post_merge(self):
-        # update values in ASIS with changes
-        self._get_all_changed_nodes()
-
         # recreate index
         self._create_index()
 
         self.mark_not_existing()
-        for i in self._post_merges:
+        for i in self.post_func:
             i()
 
         self._get_all_changed_nodes()
 
     def mark_not_existing(self):
         # TODO - check for within terc
-        imp_addr = set(map(lambda x: x.get_index_key, self.impdata))
+        imp_addr = set(map(lambda x: x.get_index_key(), self.impdata))
         # from all addresses in OsmDb remove those imported
-        for addr in (set(self.osmdb.getalladdress()) - imp_addr):
+        to_delete = set(self.osmdb.getalladdress()) - imp_addr
+
+        self.__log.debug("Marking %d not existing addresses", len(to_delete))
+        for addr in to_delete:
             for node in self.osmdb.getbyaddress(addr):
                 if node.only_address_node() and self._import_area_shape.contains(node.center):
                     # report only points within area of interest
                     self.__log.debug("Marking node to delete: %s, %s", node.osmid, str(node.entry))
                     node.addFixme('Check address existance')
 
-    def _merge_addresses(self):
+    def merge_addresses(self):
         self._merge_addresses_buffer(0)
         self._merge_addresses_buffer(2)
         self._merge_addresses_buffer(5)
@@ -472,9 +494,10 @@ class Merger(object):
         for tag in addr.get_tag_soup():
             building.append(tag)
         addr.set_state('delete')
+        self._updated_nodes.append(self.osmdb.getbyid("%s:%s" % (building.name, building['id']))[0])
 
     def _merge_addresses_buffer(self, buf=0):
-        self.__log.info("Merging building with buffer: %s", buf)
+        self.__log.info("Merging building with buffer: %d", buf)
         to_merge = self._prepare_merge_list(buf)
         buildings = dict(
             ("%s:%s" % (x.name, x['id']), x) for x in self.asis.find_all(['way', 'relation'])
@@ -500,33 +523,34 @@ class Merger(object):
 
     def _prepare_merge_list(self, buf):
         ret = {}
-        for node in self.asis.find_all(lambda x: x.get('action') != 'delete' and x.name == 'node'):
-            addr = OsmAddress.from_soup(node)
-            candidates = list(self.osmdb.nearest(addr.get_point(), num_results=10))
-            candidates_within = list(
-                filter(
-                    lambda x: x.objtype == 'relation' and entry.center.within(buffer(x.shape, buf)),
-                    candidates
-                )
-            )
-            if not candidates_within:
+        for node in self.asis.find_all(lambda x: x.get('action') != 'delete' and x.name == 'node' and x.find('tag', k='addr:housenumber')):
+            addr = self.osmdb.getbyid("%s:%s" % (node.name, node['id']))[0]
+            if addr.only_address_node() and addr.state != 'delete':
+                candidates = list(self.osmdb.nearest(addr.center, num_results=10))
                 candidates_within = list(
                     filter(
-                        lambda x: x.objtype == 'way' and entry.center.within(buffer(x.shape, buf)),
+                        lambda x: x.objtype == 'relation' and addr.center.within(buffer(x.shape, buf)),
                         candidates
                     )
-               )
-            if candidates_within:
-                c = candidates_within[0]
-                if c.housenumber:
-                    c.set_state('visible')
-                else:
-                    try:
-                        lst = ret[c.osmid]
-                    except KeyError:
-                        lst = []
-                        ret[c.osmid] = lst
-                    lst.append(addr)
+                )
+                if not candidates_within:
+                    candidates_within = list(
+                        filter(
+                            lambda x: x.objtype == 'way' and addr.center.within(buffer(x.shape, buf)),
+                            candidates
+                        )
+                   )
+                if candidates_within:
+                    c = candidates_within[0]
+                    if c.housenumber:
+                        c.set_state('visible')
+                    else:
+                        try:
+                            lst = ret[c.osmid]
+                        except KeyError:
+                            lst = []
+                            ret[c.osmid] = lst
+                        lst.append(addr)
         return ret
 
     def get_incremental_result(self, logIO=None):
@@ -534,7 +558,7 @@ class Merger(object):
         osm = ret.osm
         changes = self._get_all_changed_nodes()
         self.__log.info("Generated %d changes", len(changes))
-        for i in self._get_all_reffered_by(changes):
+        for i in self._get_all_reffered_by(changes + self._get_all_visible()):
             osm.append(i)
 
         if logIO:
@@ -664,9 +688,11 @@ def main():
     if args.terc:
         terc = args.terc
 
+    __log.info("Working with TERC: %s", terc)
     if args.addresses_file:
         addrFunc = lambda: args.addresses_file.read()
     else:
+        # union with bounds of administrative boundary
         s = min(map(lambda x: x.center.y, data))
         w = min(map(lambda x: x.center.x, data))
         n = max(map(lambda x: x.center.y, data))
@@ -683,6 +709,7 @@ def main():
         __log.warning("Warning - address data is empty. Check your file/terc code")
 
     m = Merger(data, addr, terc)
+    m.post_func.append(m.merge_addresses)
     m.merge()
 
     if args.full_mode:
