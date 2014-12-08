@@ -357,10 +357,10 @@ class Merger(object):
 
         if candidates_within:
             c = candidates_within[0]
-            if c.housenumber:
+            if not c.housenumber:
                 # no address on way/relation -> add address
                 # create a point, will be merged with building later
-                self.__log.debug("Creating address node as building contains address")
+                self.__log.debug("Creating address node as building contains no address")
                 self._create_point(entry)
                 return True
             else:
@@ -535,6 +535,7 @@ class Merger(object):
                     self.__log.info("Skipping merging address: %s, as building already has an address: %s.", nodes[0], nodestr(building))
                     self._mark_soup_visible(nodes[0])
                 else:
+                    self.__log.debug("Merging address %s with building", str(nodes[0]))
                     self._merge_one_address(building, nodes[0])
 
             if len(nodes) > 1:
@@ -549,14 +550,14 @@ class Merger(object):
                 candidates = list(self.osmdb.nearest(addr.center, num_results=10))
                 candidates_within = list(
                     filter(
-                        lambda x: x.objtype == 'relation' and addr.center.within(buffer(x.shape, buf)),
+                        lambda x: addr.osmid != x.osmid and x.objtype == 'relation' and addr.center.within(buffer(x.shape, buf)),
                         candidates
                     )
                 )
                 if not candidates_within:
                     candidates_within = list(
                         filter(
-                            lambda x: x.objtype == 'way' and addr.center.within(buffer(x.shape, buf)),
+                            lambda x: addr.osmid != x.osmid and x.objtype == 'way' and addr.center.within(buffer(x.shape, buf)),
                             candidates
                         )
                    )
