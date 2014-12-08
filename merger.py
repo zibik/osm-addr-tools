@@ -434,7 +434,7 @@ class Merger(object):
             ret = ret.union(get_reffered(i))
 
         return tuple(map(
-            lambda x: self.osmdb.getbyid("%s:%s" % (x[0], x[1]))[0],
+            lambda x: self.osmdb.getbyid("%s:%s" % (x[0], x[1]))[0].to_osm_soup(),
             ret
         ))
 
@@ -532,8 +532,9 @@ class Merger(object):
     def get_incremental_result(self, logIO=None):
         ret = getEmptyOsm(self.asis.meta)
         osm = ret.osm
-        for i in self._get_all_reffered_by(self._get_all_changed_nodes()):
-            # TODO - add refs
+        changes = self._get_all_changed_nodes()
+        self.__log.info("Generated %d changes", len(changes))
+        for i in self._get_all_reffered_by(changes):
             osm.append(i)
 
         if logIO:
