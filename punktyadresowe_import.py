@@ -147,13 +147,13 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         return tuple(map(float, (self.location['lat'], self.location['lon'])))
 
     def get_point(self):
-        return Point(self.getLatLon())
+        return Point(reversed(self.getLatLon()))
 
     @property
     def center(self):
         return self.get_point()
 
-    def similar_to(other):
+    def similar_to(self, other):
         ret = True
         ret &= (other.housenumber.upper().replace(' ', '') == self.housenumber.upper().replace(' ', ''))
         if self.simc and other.simc and self.simc == other.simc:
