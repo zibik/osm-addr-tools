@@ -439,14 +439,13 @@ class Merger(object):
         ret.update(dict((x.osmid, x) for x in self.osmdb.get_all_values() if x.changed or x.state in ('modify', 'delete')))
         self.__log.info("Length of ret after get_all_values: %d", len(ret))
     
-        for _id in ret:
-            i = self.osmdb.getbyid(_id)[0]
+        for (_id, i) in ret.items():
             if i in self._updated_nodes:
-                self.__log.debug("Processing updated node: %s", i.entry)
+                self.__log.debug("Processing updated node: %s", i)
             elif i in self._new_nodes:
-                self.__log.debug("Processing new node: %s", i.entry)
+                self.__log.debug("Processing new node: %s", i)
             elif i.changed or i.state in ('modify', 'delete'):
-                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, i.entry)
+                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, i)
 
         return tuple(map(lambda x: x.to_osm_soup(), ret.values()))
 
