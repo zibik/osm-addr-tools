@@ -56,7 +56,7 @@ class OsmAddress(Address):
         if fixme:
             ret.addFixme(fixme)
         if obj.get('action'):
-            self.state = obj['action']
+            ret.state = obj['action']
         return ret
 
     @staticmethod
