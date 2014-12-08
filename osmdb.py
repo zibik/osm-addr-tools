@@ -15,6 +15,29 @@ def _get_id(soup):
     """Converts overlapping identifiers for node, ways and relations in single integer space"""
     return __multipliers[soup.name](int(soup['id']))
 
+
+def get_soup_position(soup):
+    """Extracts position for way/node as bounding box"""
+    if soup.name == 'node':
+        return (float(soup['lat']), float(soup['lon'])) * 2
+
+    if soup.name in ('way', 'relation'):
+        b = soup.bounds
+        if b:
+            return tuple(
+                    map(float,
+                        (b['minlat'], b['minlon'], b['maxlat'], b['maxlon'])
+                    )
+                )
+        else:
+            raise TypeError("No bounds for ways and relations!")
+    raise TypeError("%s not supported" % (soup.name,))
+
+def get_soup_center(soup):
+    # lat, lon
+    pos = get_soup_position(soup)
+    return (pos[0] + pos[2])/2, (pos[1] + pos[3])/2
+
 class OsmDbEntry(object):
     def __init__(self, entry, raw, osmdb):
         self._entry = entry
@@ -27,7 +50,7 @@ class OsmDbEntry(object):
 
     @property
     def shape(self):
-        return self._osmdb.get_shape(self.raw)
+        return self._osmdb.get_shape(self._raw)
     
     @property
     def center(self):
@@ -35,6 +58,12 @@ class OsmDbEntry(object):
 
     def __getattr__(self, attr):
         return getattr(self.entry, attr)
+
+    def within(self, other):
+        return self.shape.within(other)
+
+    def contains(self, other):
+        return self.shape.contains(other)
 
 class OsmDb(object):
     def __init__(self, osmdata, valuefunc=lambda x: x, indexes={}):
@@ -50,9 +79,9 @@ class OsmDb(object):
         self.__custom_indexes_conf = indexes
 
         for i in indexes.keys():
-            def getfromindex(self, key):
-                return self.__custom_indexes[i][key]
-            def getallindexed(self):
+            def getfromindex(key):
+                return self.__custom_indexes[i].get(key, [])
+            def getallindexed():
                 return tuple(self.__custom_indexes[i].keys())
 
             setattr(self, 'getby' + i, getfromindex)
@@ -65,12 +94,14 @@ class OsmDb(object):
         self.__osm_obj = {}
         self.__custom_indexes = dict((x, {}) for x in self.__custom_indexes_conf.keys())
 
-        for i in self.soup.osm.find_all(['node', 'way', 'relation'], recursive=False):
-            _id = _get_id(i)
-            pos = self.__getPos(i)
+        for i in self._soup.osm.find_all(['node', 'way', 'relation'], recursive=False):
+            val = OsmDbEntry(self._valuefunc(i), i, self)
+            self.__osm_obj[(i.name, i['id'])] = val
+
+            pos = get_soup_position(i)
             if pos:
+                _id = _get_id(i)
                 self.__index.insert(_id, pos)
-                val = OsmDbEntry(self._valuefunc(i), i, self)
 
                 self.__index_entries[_id] = val
 
@@ -84,54 +115,39 @@ class OsmDb(object):
                         custom_index[key] = entry
                     entry.append(val)
 
-            self.__osm_obj[(i.name, i['id'])] = val
 
-    def __getPos(self, soup):
-        """Extracts position for way/node as bounding box"""
-        if soup.name == 'node':
-            return (float(soup['lat']), float(soup['lon'])) * 2
-
-        if soup.name in ('way', 'relation'):
-            b = soup.bounds
-            if b:
-                return tuple(
-                        map(float,
-                            (b['minlat'], b['minlon'], b['maxlat'], b['maxlon'])
-                        )
-                    )
-            else:
-                return None
-
-        raise TypeError("%s not supported" % (soup.name,))
-
-    def get_center(self, soup):
-        pos = self.__getPos(soup)
-        return (pos[0] + pos[2])/2, (pos[1] + pos[3])/2
+    def get_all_values(self):
+        return self.__index_entries.values()
 
     def nearest(self, point, num_results=1):
+        if isinstance(point, Point):
+            point = (point.y, point.x)
         return map(self.__index_entries.get, 
                    self.__index.nearest(point * 2, num_results)
                )
 
     def get_shape(self, soup):
         if soup.name == 'node':
-            return Point(tuple(map(float, soup['lat'], soup['lon'])))
+            return Point(tuple(map(float, (soup['lon'], soup['lat']))))
 
         if soup.name == 'way':
-            return Polygon(tuple(map(float, (x['lat'], x['lon']))) for x in (self.__osm_obj[('node', y['ref'])] for y in soup.find_all('nd', recursive=False)))
+            return Polygon(tuple(map(float, (x.center.x, x.center.y))) for x in (self.__osm_obj[('node', y['ref'])] for y in soup.find_all('nd', recursive=False)))
 
         if soup.name == 'relation':
             # returns only outer ways, no exclusion for inner ways
             # hardest one
             # outer ways
+            # TODO: handle multiple outer ways, and inner ways
+            # multiple outer: terc=1019042
+            # inner ways: terc=1014082
             outer = list(self.__osm_obj[(x['type'], x['ref'])] for x in soup.find_all(
                                                     lambda x: x.name == 'member' and 
                                                     x['type'] == 'way' and 
                                                     (x['role'] == 'outer' or not x.get('role')))
                     )
             
-            way_by_first_node = utils.groupby((x.find('nd')['ref'], x) for x in outer)
-            way_by_last_node = utils.groupby((x.find_all('nd')[-1]['ref'], x) for x in outer)
+            way_by_first_node = utils.groupby(outer, lambda x: x.find('nd')['ref'])
+            way_by_last_node = utils.groupby(outer, lambda x: x.find_all('nd')[-1]['ref'])
             ret = []
             cur_elem = outer[0]
             node_ids = []
@@ -149,7 +165,7 @@ class OsmDb(object):
                     elif ids[-1] == node_ids[0]:
                         node_ids = list(reversed(node_ids))
                         ids = list(reversed(ids))
-                ret.extend(tuple(map(float, (x['lat'], x['lon']))) for x in (self.__osm_obj[('node', y)] for y in ids))
+                ret.extend(tuple(map(float, (x.center.x, x.center.y))) for x in (self.__osm_obj[('node', y)] for y in ids))
                 node_ids.extend(ids)
                 outer.remove(cur_elem)
                 if node_ids[0] == node_ids[-1]:
