@@ -78,14 +78,18 @@ class OsmDb(object):
         self._valuefunc=valuefunc
         self.__custom_indexes_conf = indexes
 
-        for i in indexes.keys():
+        def makegetfromindex(i):
             def getfromindex(key):
                 return self.__custom_indexes[i].get(key, [])
+            return getfromindex
+        def makegetallindexed(i):
             def getallindexed():
                 return tuple(self.__custom_indexes[i].keys())
+            return getallindexed
 
-            setattr(self, 'getby' + i, getfromindex)
-            setattr(self, 'getall' + i, getallindexed)
+        for i in indexes.keys():
+            setattr(self, 'getby' + i, makegetfromindex(i))
+            setattr(self, 'getall' + i, makegetallindexed(i))
         self.update_index()
 
     def update_index(self):
