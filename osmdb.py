@@ -113,9 +113,9 @@ class OsmDb(object):
 
                 self.__index_entries[_id] = val
 
-                for i in self.__custom_indexes_conf.keys():
-                    custom_index = self.__custom_indexes[i]
-                    key = self.__custom_indexes_conf[i](val)
+                for j in self.__custom_indexes_conf.keys():
+                    custom_index = self.__custom_indexes[j]
+                    key = self.__custom_indexes_conf[j](val)
                     try:
                         entry = custom_index[key]
                     except KeyError:

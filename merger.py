@@ -233,7 +233,7 @@ class Merger(object):
         if isinstance(asis, BeautifulSoup):
             self.asis = asis
         else:
-            self.asis = BeautifulSoup(asis, "")
+            self.asis = BeautifulSoup(asis, "xml")
         self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
         self._new_nodes = []
         self._updated_nodes = []
