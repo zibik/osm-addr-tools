@@ -36,28 +36,21 @@ class OsmAddress(Address):
 
     @staticmethod
     def from_soup(obj):
-        def _getVal(key, recursive=False):
-            tag = obj.find('tag', k=key)
-            return str(tag['v']) if tag else ''
-        
         cache = dict((str(tag['k']), str(tag['v'])) for tag in obj.find_all('tag'))
 
-        if _getVal('addr:housenumber'):
-            ret = OsmAddress(
-                housenumber = cache.get('addr:housenumber', ''),
-                postcode    = cache.get('addr:postcode', ''),
-                street      = cache.get('addr:street', ''),
-                city        = cache.get('addr:city', '') if cache.get('addr:street') else cache.get('addr:place', ''),
-                sym_ul      = cache.get('teryt:symul', ''),
-                simc        = cache.get('teryt:simc', ''),
-                source      = cache.get('source:addr', ''),
-                location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
-                soup        = obj
-            )
-        else:
-            ret = OsmAddress(location = dict(zip(('lat', 'lon'), get_soup_center(obj))), soup = obj)
+        ret = OsmAddress(
+            housenumber = cache.get('addr:housenumber', ''),
+            postcode    = cache.get('addr:postcode', ''),
+            street      = cache.get('addr:street', ''),
+            city        = cache.get('addr:city', '') if cache.get('addr:street') else cache.get('addr:place', ''),
+            sym_ul      = cache.get('teryt:symul', ''),
+            simc        = cache.get('teryt:simc', ''),
+            source      = cache.get('source:addr', ''),
+            location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
+            soup        = obj
+        )
 
-        fixme = _getVal('fixme')
+        fixme = cache.get('fixme')
         if fixme:
             ret.addFixme(fixme)
         if obj.get('action'):
@@ -534,7 +527,7 @@ class Merger(object):
         self.__log.info("Merging building with buffer: %d", buf)
         to_merge = self._prepare_merge_list(buf)
         buildings = dict(
-            ("%s:%s" % (x.name, x['id']), x) for x in self.asis.find_all(['way', 'relation'])
+            ("%s:%s" % (x.name, x['id']), x) for x in self.asis.osm.find_all(['way', 'relation'], recursive=False)
         )
 
         self.__log.info("Merging %d addresses with buildings", len(tuple(filter(lambda x: len(x[1]) == 1, to_merge.items()))))
@@ -558,7 +551,7 @@ class Merger(object):
 
     def _prepare_merge_list(self, buf):
         ret = {}
-        for node in self.asis.find_all(lambda x: x.get('action') != 'delete' and x.name == 'node' and x.find('tag', k='addr:housenumber')):
+        for node in self.asis.osm.find_all(lambda x: x.name == 'node' and x.get('action') != 'delete' and x.find('tag', k='addr:housenumber'), recursive=False):
             addr = self.osmdb.getbyid("%s:%s" % (node.name, node['id']))[0]
             self.__log.debug("Looking for candidates for: %s", str(addr.entry))
             if addr.only_address_node() and addr.state != 'delete' and self._import_area_shape.contains(addr.center):
