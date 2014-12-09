@@ -36,21 +36,26 @@ class OsmAddress(Address):
 
     @staticmethod
     def from_soup(obj):
-        def _getVal(key):
+        def _getVal(key, recursive=False):
             tag = obj.find('tag', k=key)
             return str(tag['v']) if tag else ''
+        
+        cache = dict((str(tag['k']), str(tag['v'])) for tag in obj.find_all('tag'))
 
-        ret = OsmAddress(
-            housenumber = _getVal('addr:housenumber'),
-            postcode    = _getVal('addr:postcode'),
-            street      = _getVal('addr:street'),
-            city        = _getVal('addr:city') if _getVal('addr:street') else _getVal('addr:place'),
-            sym_ul      = _getVal('teryt:symul'),
-            simc        = _getVal('teryt:simc'),
-            source      = _getVal('source:addr'),
-            location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
-            soup        = obj
-        )
+        if _getVal('addr:housenumber'):
+            ret = OsmAddress(
+                housenumber = cache.get('addr:housenumber', ''),
+                postcode    = cache.get('addr:postcode', ''),
+                street      = cache.get('addr:street', ''),
+                city        = cache.get('addr:city', '') if cache.get('addr:street') else cache.get('addr:place', ''),
+                sym_ul      = cache.get('teryt:symul', ''),
+                simc        = cache.get('teryt:simc', ''),
+                source      = cache.get('source:addr', ''),
+                location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
+                soup        = obj
+            )
+        else:
+            ret = OsmAddress(location = dict(zip(('lat', 'lon'), get_soup_center(obj))), soup = obj)
 
         fixme = _getVal('fixme')
         if fixme:
@@ -76,10 +81,10 @@ class OsmAddress(Address):
             ret.addFixme(address.getFixme())
         return ret
 
-    def __setattr__(self, name, value):
-        if not name.startswith('_'):
-            self._changed = True
-        return super(OsmAddress, self).__setattr__(name, value)
+    #def __setattr__(self, name, value):
+    #    if not name.startswith('_'):
+    #        self._changed = True
+    #    return super(OsmAddress, self).__setattr__(name, value)
 
     def set_state(self, val):
         if val == 'visible' and self.state not in ('modify', 'delete'):
@@ -126,7 +131,7 @@ class OsmAddress(Address):
                 return False
             n['v'] = val.strip()
         else:
-            new = BeautifulSoup("", "xml").new_tag(name='tag', k=key, v=val.strip())
+            new = BeautifulSoup().new_tag(name='tag', k=key, v=val.strip())
             self._soup.append(new)
         return True
 
@@ -185,6 +190,7 @@ class OsmAddress(Address):
             ret |= update(name)
         if entry.getFixme():
             self.addFixme(entry.getFixme())
+            self._changed = True
             return True
         return ret
 
@@ -233,7 +239,7 @@ class Merger(object):
         if isinstance(asis, BeautifulSoup):
             self.asis = asis
         else:
-            self.asis = BeautifulSoup(asis, "xml")
+            self.asis = BeautifulSoup(asis)
         self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
         self._new_nodes = []
         self._updated_nodes = []
@@ -417,7 +423,7 @@ class Merger(object):
 
     def _create_point(self, entry):
         self.__log.debug("Creating new point")
-        ret = BeautifulSoup("", "xml")
+        ret = BeautifulSoup()
         node = ret.new_tag(name='node', id=self._get_node_id(), action='modify',
             lat=entry.location['lat'], lon=entry.location['lon'])
         self._new_nodes.append(OsmAddress.from_address(entry, node))
@@ -648,7 +654,7 @@ out bb;
 >;
 out bb;
 """ % (terc,)
-    soup = BeautifulSoup(overpass.query(query), "xml")
+    soup = BeautifulSoup(overpass.query(query))
     osmdb = OsmDb(soup)
     return osmdb.get_shape(soup.find('relation'))
 
@@ -668,7 +674,7 @@ def buffer(shp, meters=0):
 
 
 def getEmptyOsm(meta):
-    ret = BeautifulSoup("", "xml")
+    ret = BeautifulSoup()
     osm = ret.new_tag('osm', version="0.6", generator="import adresy merge.py")
     ret.append(osm)
     nt = ret.new_tag('note')
