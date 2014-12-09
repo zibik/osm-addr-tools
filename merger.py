@@ -126,7 +126,7 @@ class OsmAddress(Address):
                 return False
             n['v'] = val.strip()
         else:
-            new = BeautifulSoup().new_tag(name='tag', k=key, v=val.strip())
+            new = BeautifulSoup("", "xml").new_tag(name='tag', k=key, v=val.strip())
             self._soup.append(new)
         return True
 
@@ -172,14 +172,21 @@ class OsmAddress(Address):
         return self._soup.find_all('tag')
 
     def updateFrom(self, entry):
+        def update(name):
+            old = getattr(self, name)
+            new = getattr(entry, name)
+            if old and new and old != new:
+                setattr(self, name, new)
+                return True
+            return False
+
         ret = False
-        self.street = entry.street
-        self.city = entry.city
-        self.housenumber = entry.housenumber
-        self.sym_ul = entry.sym_ul
-        self.simc = entry.simc
-        self.addFixme(entry.getFixme())
-        self.source = entry.source
+        for name in ('street', 'city', 'housenumber', 'sym_ul', 'simc', 'source'):
+            ret |= update(name)
+        if entry.getFixme():
+            self.addFixme(entry.getFixme())
+            return True
+        return ret
 
     @property
     def changed(self):
@@ -226,7 +233,7 @@ class Merger(object):
         if isinstance(asis, BeautifulSoup):
             self.asis = asis
         else:
-            self.asis = BeautifulSoup(asis)
+            self.asis = BeautifulSoup(asis, "")
         self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
         self._new_nodes = []
         self._updated_nodes = []
@@ -404,13 +411,13 @@ class Merger(object):
         return True
 
     def _update_node(self, node, entry):
-        self.__log.debug("Updating node %s using %s", node.osmid, entry)
-        node.updateFrom(entry)
-        self._updated_nodes.append(node)
+        if node.updateFrom(entry):
+            self.__log.debug("Updating node %s using %s", node.osmid, entry)
+            self._updated_nodes.append(node)
 
     def _create_point(self, entry):
         self.__log.debug("Creating new point")
-        ret = BeautifulSoup()
+        ret = BeautifulSoup("", "xml")
         node = ret.new_tag(name='node', id=self._get_node_id(), action='modify',
             lat=entry.location['lat'], lon=entry.location['lon'])
         self._new_nodes.append(OsmAddress.from_address(entry, node))
@@ -641,7 +648,7 @@ out bb;
 >;
 out bb;
 """ % (terc,)
-    soup = BeautifulSoup(overpass.query(query))
+    soup = BeautifulSoup(overpass.query(query), "xml")
     osmdb = OsmDb(soup)
     return osmdb.get_shape(soup.find('relation'))
 
@@ -662,7 +669,6 @@ def buffer(shp, meters=0):
 
 def getEmptyOsm(meta):
     ret = BeautifulSoup("", "xml")
-    #ret = BeautifulSoup()
     osm = ret.new_tag('osm', version="0.6", generator="import adresy merge.py")
     ret.append(osm)
     nt = ret.new_tag('note')
