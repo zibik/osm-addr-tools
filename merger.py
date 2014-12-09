@@ -487,7 +487,6 @@ class Merger(object):
         self._get_all_changed_nodes()
 
     def mark_not_existing(self):
-        # TODO - check for within terc
         imp_addr = set(map(lambda x: x.get_index_key(), self.impdata))
         # from all addresses in OsmDb remove those imported
         to_delete = set(filter(
@@ -506,6 +505,7 @@ class Merger(object):
 
     def merge_addresses(self):
         self._merge_addresses_buffer(0)
+        # TODO: to_osm_soup?
         self._merge_addresses_buffer(2)
         self._merge_addresses_buffer(5)
         self._merge_addresses_buffer(10)
@@ -533,7 +533,7 @@ class Merger(object):
 
             if len(nodes) == 1:
                 if building.find('tag', k='addr:housenumber'):
-                    self.__log.info("Skipping merging address: %s, as building already has an address: %s.", nodes[0], nodestr(building))
+                    self.__log.info("Skipping merging address: %s, as building already has an address: %s.", str(nodes[0].entry), OsmAddress.from_soup(building))
                     self._mark_soup_visible(nodes[0])
                 else:
                     self.__log.debug("Merging address %s with building %s", str(nodes[0].entry), _id)
@@ -548,7 +548,7 @@ class Merger(object):
         for node in self.asis.find_all(lambda x: x.get('action') != 'delete' and x.name == 'node' and x.find('tag', k='addr:housenumber')):
             addr = self.osmdb.getbyid("%s:%s" % (node.name, node['id']))[0]
             self.__log.debug("Looking for candidates for: %s", str(addr.entry))
-            if addr.only_address_node() and addr.state != 'delete':
+            if addr.only_address_node() and addr.state != 'delete' and self._import_area_shape.contains(addr.center):
                 candidates = list(self.osmdb.nearest(addr.center, num_results=10))
                 candidates_within = list(
                     filter(
