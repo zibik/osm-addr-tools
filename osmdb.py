@@ -17,7 +17,16 @@ def _get_id(soup):
     return __multipliers[soup.name](int(soup['id']))
 
 
+__position_cache = {}
 def get_soup_position(soup):
+    try:
+        return __position_cache[soup['id']]
+    except KeyError:
+        ret = get_soup_position_cached(soup)
+        __position_cache[soup['id']] = ret
+        return ret
+
+def get_soup_position_cached(soup):
     """Extracts position for way/node as bounding box"""
     if soup.name == 'node':
         return (float(soup['lat']), float(soup['lon'])) * 2
@@ -79,6 +88,7 @@ class OsmDb(object):
         self.__custom_indexes = dict((x, {}) for x in indexes.keys())
         self._valuefunc=valuefunc
         self.__custom_indexes_conf = indexes
+        self.__cached_shapes = {}
 
         def makegetfromindex(i):
             def getfromindex(key):
@@ -135,6 +145,15 @@ class OsmDb(object):
                )
 
     def get_shape(self, soup):
+        id_ = soup['id']
+        try:
+            return self.__cached_shapes[id_]
+        except KeyError:
+            ret = self.get_shape_cached(soup)
+            self.__cached_shapes[id_] = ret
+            return ret
+
+    def get_shape_cached(self, soup):
         if soup.name == 'node':
             return Point(tuple(map(float, (soup['lon'], soup['lat']))))
 
