@@ -331,7 +331,7 @@ class Merger(object):
                     if dist > 100:
                         if not (node.objtype in ( 'way', 'relation') and node.contains(entry.center)):
                             # ignore the distance, if the point is within the node
-                            self.__log.warning("Address (id=%s:%s) %s is %d meters from imported point", node.osmid, entry, dist)
+                            self.__log.warning("Address (id=%s) %s is %d meters from imported point", node.osmid, entry, dist)
                             node.addFixme("Node is %d meters away from imported point"  % dist)
                     self.set_state(node, 'visible')
                 if min(x[0] for x in existing) > 50:
