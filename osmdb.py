@@ -28,11 +28,11 @@ def get_soup_position(soup):
 
 def get_soup_position_cached(soup):
     """Extracts position for way/node as bounding box"""
-    if soup.name == 'node':
+    if soup['type'] == 'node':
         return (float(soup['lat']), float(soup['lon'])) * 2
 
-    if soup.name in ('way', 'relation'):
-        b = soup.bounds
+    if soup['type'] in ('way', 'relation'):
+        b = soup['bounds']
         if b:
             return tuple(
                     map(float,
@@ -41,7 +41,7 @@ def get_soup_position_cached(soup):
                 )
         else:
             raise TypeError("No bounds for ways and relations!")
-    raise TypeError("%s not supported" % (soup.name,))
+    raise TypeError("%s not supported" % (soup['type'],))
 
 def get_soup_center(soup):
     # lat, lon
