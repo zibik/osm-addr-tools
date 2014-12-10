@@ -438,7 +438,7 @@ class GUGiK(AbstractImport):
 
 
     def _convertToAddress(self, soup):
-        desc_soup = lxml.html.fromstring(str(soup.description.string))
+        desc_soup = lxml.html.fromstring(str(soup.find('{http://www.opengis.net/kml/2.2}description').text))
         addr_kv = dict(
             (
              str(x.find('strong').find('span').text),
@@ -446,7 +446,7 @@ class GUGiK(AbstractImport):
             ) for x in desc_soup.find('ul').iterchildren()
         )
 
-        coords = soup.Point.coordinates.string.split(',')
+        coords = soup.find('{http://www.opengis.net/kml/2.2}Point').find('{http://www.opengis.net/kml/2.2}coordinates').text.split(',')
         ret = Address(
                 addr_kv[str_normalize('NUMER_PORZADKOWY')],
                 addr_kv.get(str_normalize('KOD_POCZTOWY')),
@@ -484,7 +484,7 @@ class GUGiK(AbstractImport):
             url = GUGiK.__base_url+",".join(map(str, i))
             self.__log.info("Fetching from EMUIA: %s", url)
             soup = lxml.etree.fromstring(urlopen(url).read())
-            doc = soup.find('kml').find('{http://www.opengis.net/kml/2.2}Document') # be namespace aware
+            doc = soup.find('{http://www.opengis.net/kml/2.2}Document') # be namespace aware
             if doc:
                 ret.extend(filter(
                     self._isEligible,
