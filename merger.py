@@ -8,12 +8,12 @@ import sys
 from osmdb import OsmDb, get_soup_center
 import json
 import pyproj
-from bs4 import BeautifulSoup
 from shapely.geometry import Point
 import shapely.geometry.base
 from punktyadresowe_import import iMPA, GUGiK, Address
 import overpass
 from utils import parallel_execution
+from lxml.builder import E
 
 __log = logging.getLogger(__name__)
 
@@ -27,6 +27,15 @@ __log = logging.getLogger(__name__)
 # TODO: import admin_level=8 for area, and add addr:city if missing for addresses within that area (needs greater refactoring)
 __geod = pyproj.Geod(ellps="WGS84")
 
+def create_property_funcs(field):
+    def getx(self):
+        return self._soup[field]
+    def setx(self, val):
+        self._soup[field] = val
+    def delx(self):
+        del self._soup[field]
+    return property(getx, setx, delx, '%s property' % (field,))
+
 class OsmAddress(Address):
     def __init__(self, soup, *args, **kwargs):
         super(OsmAddress, self).__init__(*args, **kwargs)
@@ -34,9 +43,17 @@ class OsmAddress(Address):
         self.state = None
         self._resetChanges()
 
+    housenumber = create_property_funcs('addr:housenumber')
+    postcode = create_property_funcs('addr:postcode')
+    street = create_property_funcs('addr:street')
+    city = create_property_funcs('addr:city')
+    sym_ul = create_property_funcs('teryt:sym_ul')
+    simc = create_property_funcs('teryt:simc')
+    source = create_property_funcs('source:addr')
+
     @staticmethod
     def from_soup(obj):
-        cache = dict((str(tag['k']), str(tag['v'])) for tag in obj.find_all('tag'))
+        cache = obj.get('tags', {})
 
         ret = OsmAddress(
             housenumber = cache.get('addr:housenumber', ''),
@@ -74,11 +91,6 @@ class OsmAddress(Address):
             ret.addFixme(address.getFixme())
         return ret
 
-    #def __setattr__(self, name, value):
-    #    if not name.startswith('_'):
-    #        self._changed = True
-    #    return super(OsmAddress, self).__setattr__(name, value)
-
     def set_state(self, val):
         if val == 'visible' and self.state not in ('modify', 'delete'):
             self.state = val
@@ -99,7 +111,7 @@ class OsmAddress(Address):
         try:
             return Point(float(node['lon']), float(node['lat']))
         except KeyError:
-            b = node.bounds
+            b = node['bounds']
             return Point(
                     (sum(map(float, (b['minlon'], b['maxlon']))))/2,
                     (sum(map(float, (b['minlat'], b['maxlat']))))/2,
@@ -110,28 +122,23 @@ class OsmAddress(Address):
 
     @property
     def objtype(self):
-        return self._soup.name
+        return self._soup['type']
 
     def _getTagVal(self, key):
-        tag = self._soup.find('tag', k=key)
-        return str(tag['v']) if tag else None
+        return self._soup.get('tags')
 
     def _setTagVal(self, key, val):
         """returns True if something was modified"""
-        n = self._soup.find('tag', k=key)
-        if n:
-            if n['v'] == val.strip():
-                return False
-            n['v'] = val.strip()
-        else:
-            new = BeautifulSoup().new_tag(name='tag', k=key, v=val.strip())
-            self._soup.append(new)
+        n = self._soup['tags'].get(key)
+        if n == val.strip():
+            return False
+        self._soup['tags'][key] = val.strip()
         return True
 
     def _removeTag(self, key):
-        rmv = self._soup.find('tag', k = key)
-        if rmv:
-            return bool(rmv.extract())
+        if key in self._soup['tags']:
+            del self._soup['tags'][key]
+            return True
         return False
 
     def getshape(self):
@@ -155,19 +162,17 @@ class OsmAddress(Address):
         # and consists only of tags listeb below
         if self.objtype != 'node':
             return False
-        return self._getTagVal('addr:housenumber') and all(map(
-            lambda x: x in {'addr:housenumber', 'addr:street', 'addr:place',
+        return self.housenumber and set(self._soup['tags'].keys()).issubset(
+                            {'addr:housenumber', 'addr:street', 'addr:place',
                             'addr:city', 'addr:postcode', 'addr:country', 'teryt:sym_ul',
-                            'teryt:simc', 'source', 'source:addr', 'fixme', 'addr:street:source'},
-            (x['k'] for x in self._soup.find_all('tag'))
-            )
+                            'teryt:simc', 'source', 'source:addr', 'fixme', 'addr:street:source'}
         )
 
     def is_new(self):
         return self._soup['id'] < 0
 
     def get_tag_soup(self):
-        return self._soup.find_all('tag')
+        return self._soup['tags']
 
     def updateFrom(self, entry):
         def update(name):
@@ -192,36 +197,51 @@ class OsmAddress(Address):
         return self._changed
 
     def to_osm_soup(self):
-        if not self.housenumber:
-            return self._soup
+        def _removeTag(tags, key):
+            if key in tags:
+                del tags[key]
+                return True
+            return False
+
+        def _setTagVal(tags, key, value):
+            n = tags.get(key)
+            if n == value.strip():
+                return False
+            tags[key] = value.strip()
+            return True
+
+        s = self._soup
+        meta_kv = dict((k, v) for (k, v) in s.items() if k in ('id', 'version', 'timestamp', 'changeset', 'uid', 'user'))
+        tags = s['tags'].copy()
+
+        if self.street:
+            ret |= _removeTag(tags, 'addr:place')
         else:
-            ret = False
-            if self.street:
-                ret |= self._setTagVal('addr:city', self.city)
-                ret |= self._setTagVal('addr:street', self.street)
-                ret |= self._removeTag('addr:place')
-            else:
-                ret |= self._setTagVal('addr:place', self.city)
-                ret |= self._removeTag('addr:street')
-                ret |= self._removeTag('addr:city')
+            ret |= _setTagVal(tags, 'addr:place', self.city)
+            ret |= _removeTag(tags, 'addr:street')
+            ret |= _removeTag(tags, 'addr:city')
+        if self.getFixme():
+            ret |= _setTagVal('fixme', self.getFixme())
 
-            ret |= self._setTagVal('addr:housenumber', self.housenumber)
+        if ret or self._changed:
+            if bool(tags.get('source')) and (tags['source'] == self.source or 'EMUIA' in tags['source'].upper()):
+                _removeTag(tags, 'source')
+            meta_kv['action'] = 'modify'
+        if self.state in ('delete', 'modify'):
+            meta_kv['action'] = self.state
 
-            if self.getFixme():
-                ret |= self._setTagVal('fixme', self.getFixme())
-
-            if ret:
-                self._setTagVal('source:addr', self.source)
-                if bool(self._getTagVal('source')) and (self._getTagVal('source') == self.source or 'EMUIA' in self._getTagVal('source').upper()):
-                    self._removeTag('source')
-
-            if ret or self._changed:
-                self._soup['action'] = 'modify'
-
-            if self.state in ('delete', 'modify'):
-                self._soup['action'] = self.state
-
-            return self._soup
+        tags = map(lambda x: E.tag(k=x[0], v=x[1]), tags.items())
+        if s.objtype == 'node':
+            root = E.node(*tags, lat=s['lat'], lon=s['lon'], **meta_kv)
+        elif s.objtype == 'way':
+            nodes = map(lambda x: E.nd(ref=x), s['nodes'])
+            root = E.way(*itertools.chain(tags, nodes), **meta_kv)
+        elif s.objtype == 'way':
+            members = map(lambda x: E.member(ref=x['ref'], type=x['type'], role=x.get('role')), s['members'])
+            root = E.relation(*itertools.chain(tags, members), **meta_kv)
+        else:
+            raise ValueError("Unsupported objtype: %s" % (s.objtype,))
+        return root
 
 
 class Merger(object):
@@ -229,10 +249,7 @@ class Merger(object):
 
     def __init__(self, impdata, asis, terc):
         self.impdata = impdata
-        if isinstance(asis, BeautifulSoup):
-            self.asis = asis
-        else:
-            self.asis = BeautifulSoup(asis)
+        self.asis = asis
         self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
         self._new_nodes = []
         self._updated_nodes = []
@@ -244,7 +261,6 @@ class Merger(object):
         self._state_changes = []
 
     def _create_index(self):
-        self._get_all_changed_nodes() # update everything in html, before we dump OsmAddress objects
         self.osmdb.update_index()
 
     def merge(self):
@@ -416,11 +432,16 @@ class Merger(object):
 
     def _create_point(self, entry):
         self.__log.debug("Creating new point")
-        ret = BeautifulSoup()
-        node = ret.new_tag(name='node', id=self._get_node_id(), action='modify',
-            lat=entry.location['lat'], lon=entry.location['lon'])
-        self._new_nodes.append(OsmAddress.from_address(entry, node))
-        self.asis.osm.append(node)
+        soup =  {
+            'type': 'node',
+            'id': self._get_node_id(),
+            'lat': entry.location['lat'],
+            'lon': entry.location['lon'],
+        }
+        new = OsmAddress.from_address(entry, soup)
+        self._new_nodes.append(new)
+        # TODO: check that soup gets address tags
+        self.asis['elements'].append(soup)
 
     def _mark_soup_visible(self, obj):
         self._soup_visible.append(obj)
@@ -443,10 +464,10 @@ class Merger(object):
             elif i.changed or i.state in ('modify', 'delete'):
                 self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, str(i))
 
-        return tuple(map(lambda x: x.to_osm_soup(), ret.values()))
+        return ret.values()
 
     def _get_all_visible(self):
-        return tuple(map(lambda x: x.to_osm_soup(), self._soup_visible))
+        return self._soup_visible
 
     def _get_all_reffered_by(self, lst):
         ret = set()
@@ -456,20 +477,20 @@ class Merger(object):
                 raise ValueError("No object found for key: %s" % (key,))
             return ret
         def get_reffered(node):
-            if node.name == 'node':
+            if node['type'] == 'node':
                 return set((('node', node['id']),))
-            if node.name == 'nd':
+            if node['type'] == 'nd':
                 return set((('node', node['ref']),))
-            if node.name == 'way':
+            if node['type'] == 'way':
                 return itertools.chain(
                     itertools.chain.from_iterable(map(get_reffered, node.find_all('nd'))),
                     (('way', node['id']),)
                 )
-            if node.name == 'member':
-                return get_reffered(getbyid("%s:%s" % (node['type'], node['ref']))[0].to_osm_soup())
+            if node['type'] == 'member':
+                return get_reffered(getbyid("%s:%s" % (node['type'], node['ref']))[0]._raw)
             if node.name == 'relation':
                 return itertools.chain(
-                    itertools.chain.from_iterable(map(get_reffered, node.find_all('member'))),
+                    itertools.chain.from_iterable(map(get_reffered, node['members'])),
                     (('relation', node['id']),)
                 )
             raise ValueError("Unkown node type: %s" % (node.name))
@@ -478,7 +499,7 @@ class Merger(object):
             ret = ret.union(get_reffered(i))
 
         return tuple(map(
-            lambda x: getbyid("%s:%s" % (x[0], x[1]))[0].to_osm_soup(),
+            lambda x: getbyid("%s:%s" % (x[0], x[1]))[0],
             ret
         ))
 
@@ -489,8 +510,6 @@ class Merger(object):
         self.mark_not_existing()
         for i in self.post_func:
             i()
-
-        self._get_all_changed_nodes()
 
     def mark_not_existing(self):
         imp_addr = set(map(lambda x: x.get_index_key(), self.impdata))
@@ -583,30 +602,28 @@ class Merger(object):
                         self.__log.debug("Found: %s", c.osmid)
         return ret
 
+    def _get_osm_xml(self, nodes, logIO=None):
+        return E.osm(
+                        E.note('The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.' + ('\n' + logIO.getvalue() if logIO else '')),
+                        E.meta(osm_base=self.asis['osm3s']['timestamp_osm_base']),
+                        *nodes,
+                    version='0.6', generator='import adresy merger.py'
+        )
+
     def get_incremental_result(self, logIO=None):
-        ret = getEmptyOsm(self.asis.meta)
-        osm = ret.osm
         changes = self._get_all_changed_nodes()
         self.__log.info("Generated %d changes", len(changes))
-        for i in self._get_all_reffered_by(changes + self._get_all_visible()):
-            osm.append(i)
-
-        if logIO:
-            ret.osm.note.string += logIO.getvalue()
-
-        return ret.prettify()
+        nodes = self._get_all_reffered_by(changes + self._get_all_visible())
+        return _get_osm_xml(nodes, logIO).prettify()
 
     def get_full_result(self, logIO=None):
-        self._get_all_changed_nodes()
-        if logIO:
-            ret.osm.note.string += logIO.getvalue()
-        return self.asis.prettify()
+        return _get_osm_xml(self._get_all_changed_nodes(), logIO).prettify()
 
 
 def getAddresses(bbox):
     bbox = ",".join(bbox)
     query = """
-[out:xml]
+[out:json]
 [timeout:600]
 ;
 (
@@ -635,11 +652,11 @@ out meta bb qt;
 >;
 out meta bb qt;
 """ % (bbox, bbox, bbox, bbox, bbox,)
-    return overpass.query(query)
+    return json.loads(overpass.query(query))
 
 def get_boundary_shape(terc):
     query = """
-[out:xml]
+[out:json]
 [timeout:600];
 relation
     ["teryt:terc"~"%s"];
@@ -647,9 +664,10 @@ out bb;
 >;
 out bb;
 """ % (terc,)
-    soup = BeautifulSoup(overpass.query(query))
+    soup = json.loads(overpass.query(query))
     osmdb = OsmDb(soup)
-    return osmdb.get_shape(soup.find('relation'))
+    rel = tuple(x for x in soup['elements'] if x['type'] == 'relation')[0]
+    return osmdb.get_shape(rel)
 
 
 def distance(a, b):
@@ -663,16 +681,6 @@ def distance(a, b):
 def buffer(shp, meters=0):
     # 0.0000089831528 is the 1m length in arc degrees of great circle
     return shp.buffer(meters*0.0000089831528)
-
-def getEmptyOsm(meta):
-    ret = BeautifulSoup()
-    osm = ret.new_tag('osm', version="0.6", generator="import adresy merge.py")
-    ret.append(osm)
-    nt = ret.new_tag('note')
-    nt.string = 'The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.'
-    ret.osm.append(nt)
-    ret.osm.append(meta)
-    return ret
 
 def main():
     # TODO: create mode where no unchanged data are returned (as addresses to be merged with buildings)

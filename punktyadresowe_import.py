@@ -217,7 +217,7 @@ class AbstractImport(object):
     def __init__(self, terc, *args, **kwargs):
         if terc:
             query = """
-[out:xml];
+[out:json];
 relation
     ["teryt:terc"="%s"]
     ["boundary"="administrative"]
@@ -226,16 +226,17 @@ out bb;
 >;
 out bb;
             """ % (terc,)
-            data = BeautifulSoup(overpass.query(query))
-            ret = data.osm.relation.bounds
+            data = json.loads(overpass.query(query))
+            relation  = tuple(x for x in data['elements'] if x['type'] == 'relation')[0]
+            bounds = relation['bounds']
             self.bbox = (
-                ret['minlon'],
-                ret['minlat'],
-                ret['maxlon'],
-                ret['maxlat'],
+                bounds['minlon'],
+                bounds['minlat'],
+                bounds['maxlon'],
+                bounds['maxlat'],
             )
             osmdb = OsmDb(data)
-            self.shape = osmdb.get_shape(data.osm.relation)
+            self.shape = osmdb.get_shape(relation)
 
     def getBbox():
         """

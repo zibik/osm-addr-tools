@@ -14,7 +14,7 @@ __multipliers = {
 
 def _get_id(soup):
     """Converts overlapping identifiers for node, ways and relations in single integer space"""
-    return __multipliers[soup.name](int(soup['id']))
+    return __multipliers[soup['type']](int(soup['id']))
 
 
 __position_cache = {}
@@ -69,6 +69,9 @@ class OsmDbEntry(object):
     def __getattr__(self, attr):
         return getattr(self.entry, attr)
 
+    def __getitem__(self, attr):
+        return self._entry[attr]
+
     def within(self, other):
         return self.shape.within(other)
 
@@ -80,11 +83,7 @@ class OsmDb(object):
     def __init__(self, osmdata, valuefunc=lambda x: x, indexes={}):
         # assume osmdata is a BeautifulSoup object already
         # do it an assert
-        if isinstance(osmdata, BeautifulSoup):
-            soup = osmdata
-        else:
-            soup = BeautifulSoup(osmdata)
-        self._soup = soup
+        self._osmdata = osmdata
         self.__custom_indexes = dict((x, {}) for x in indexes.keys())
         self._valuefunc=valuefunc
         self.__custom_indexes_conf = indexes
@@ -112,9 +111,9 @@ class OsmDb(object):
         self.__osm_obj = {}
         self.__custom_indexes = dict((x, {}) for x in self.__custom_indexes_conf.keys())
 
-        for i in self._soup.osm.find_all(['node', 'way', 'relation'], recursive=False):
+        for i in self._osmdata['elements']:
             val = OsmDbEntry(self._valuefunc(i), i, self)
-            self.__osm_obj[(i.name, i['id'])] = val
+            self.__osm_obj[(i['type'], i['id'])] = val
 
             pos = get_soup_position(i)
             if pos:
@@ -154,18 +153,18 @@ class OsmDb(object):
             return ret
 
     def get_shape_cached(self, soup):
-        if soup.name == 'node':
-            return Point(tuple(map(float, (soup['lon'], soup['lat']))))
+        if soup['type'] == 'node':
+            return Point(float(soup['lon']), float(soup['lat']))
 
-        if soup.name == 'way':
-            nodes = tuple(self.__osm_obj[('node', y['ref'])] for y in soup.find_all('nd', recursive=False))
+        if soup['type'] == 'way':
+            nodes = tuple(self.__osm_obj[('node', y)] for y in soup['nodes'])
             if len(nodes) < 3:
                 self.__log.warning("Way has less than 3 nodes. Check geometry. way:%s" % (soup['id'],))
                 self.__log.warning("Returning geometry as a point")
-                return Point((sum(x.center.x for x in nodes)/len(nodes), sum(x.center.y for x in nodes)/len(nodes)))
+                return Point(sum(x.center.x for x in nodes)/len(nodes), sum(x.center.y for x in nodes)/len(nodes))
             return Polygon((x.center.x, x.center.y) for x in nodes)
 
-        if soup.name == 'relation':
+        if soup['type'] == 'relation':
             # returns only outer ways, no exclusion for inner ways
             # hardest one
             # outer ways
@@ -174,7 +173,7 @@ class OsmDb(object):
             # inner ways: terc=1014082
             outer = []
             inner = []
-            for member in soup.find_all(lambda x: x.name =='member' and x['type'] =='way'):
+            for member in filter(lambda x: x['type'] == 'way', soup['members']):
                 obj = self.__osm_obj[(member['type'], member['ref'])]
                 if member['role'] == 'outer' or not member.get('role'):
                     outer.append(obj)
@@ -199,14 +198,14 @@ class OsmDb(object):
         if not ways:
             return []
         ways = list(ways)
-        way_by_first_node = utils.groupby(ways, lambda x: x._raw.find('nd')['ref'])
-        way_by_last_node = utils.groupby(ways, lambda x: x._raw.find_all('nd')[-1]['ref'])
+        way_by_first_node = utils.groupby(ways, lambda x: x._raw['nodes'][0])
+        way_by_last_node = utils.groupby(ways, lambda x: x._raw['nodes'][-1])
         ret = []
         cur_elem = ways[0]
         node_ids = []
 
         def _get_ids(elem):
-            return list(y['ref'] for y in cur_elem._raw.find_all('nd', recursive=False))
+            return elem['nodes']
 
         def _get_way(id_, dct):
             if id_ in dct:
