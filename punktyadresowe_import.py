@@ -483,7 +483,7 @@ class GUGiK(AbstractImport):
             url = GUGiK.__base_url+",".join(map(str, i))
             self.__log.info("Fetching from EMUIA: %s", url)
             soup = lxml.etree.fromstring(urlopen(url).read())
-            doc = soup.find('kml').find('{http://www.opengis.net/kml/2.2}Document') # be namespace aware
+            doc = soup.find('{http://www.opengis.net/kml/2.2}Document') # be namespace aware
             if doc:
                 ret.extend(filter(
                     self._isEligible,
