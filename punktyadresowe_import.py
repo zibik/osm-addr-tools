@@ -43,6 +43,7 @@ import overpass
 from mapping import mapstreet, mapcity
 from utils import parallel_execution, groupby
 import lxml.html
+import lxml.etree
 
 
 # stałe
@@ -481,11 +482,12 @@ class GUGiK(AbstractImport):
         for i in self.divideBbox(*bbox):
             url = GUGiK.__base_url+",".join(map(str, i))
             self.__log.info("Fetching from EMUIA: %s", url)
-            soup = BeautifulSoup(urlopen(url), "xml")
-            if soup.kml.Document:
+            soup = lxml.etree.fromstring(urlopen(url).read())
+            doc = soup.find('kml').find('{http://www.opengis.net/kml/2.2}Document') # be namespace aware
+            if doc:
                 ret.extend(filter(
                     self._isEligible,
-                    map(self._convertToAddress, soup.kml.Document.find_all('Placemark', recursive=False))
+                    map(self._convertToAddress, doc.iterchildren('{http://www.opengis.net/kml/2.2}Placemark'))
                     )
                 )
             else:
