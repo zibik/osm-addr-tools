@@ -445,7 +445,7 @@ class GUGiK(AbstractImport):
             ) for x in desc_soup.find('ul').iterchildren()
         )
 
-        coords = soup.Point.coordinates.string.split(',')
+        coords = soup.find('{http://www.opengis.net/kml/2.2}Point').find('{http://www.opengis.net/kml/2.2}coordinates').text.split(',')
         ret = Address(
                 addr_kv[str_normalize('NUMER_PORZADKOWY')],
                 addr_kv.get(str_normalize('KOD_POCZTOWY')),
