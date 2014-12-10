@@ -42,6 +42,7 @@ from osmdb import OsmDb
 import overpass
 from mapping import mapstreet, mapcity
 from utils import parallel_execution, groupby
+import lxml.html
 
 
 # stałe
@@ -435,12 +436,12 @@ class GUGiK(AbstractImport):
 
 
     def _convertToAddress(self, soup):
-        desc_soup = BeautifulSoup(str(soup.description.string))
+        desc_soup = lxml.html.fromstring(str(soup.description.string))
         addr_kv = dict(
             (
-             str(x.find('span', class_='atr-name').string),
-             str(x.find('span', class_='atr-value').string)
-            ) for x in desc_soup.find_all('li')
+             str(x.find('strong').find('span').text),
+             str(x.find('span').text)
+            ) for x in desc_soup.find('ul').iterchildren()
         )
 
         coords = soup.Point.coordinates.string.split(',')
@@ -484,7 +485,7 @@ class GUGiK(AbstractImport):
             if soup.kml.Document:
                 ret.extend(filter(
                     self._isEligible,
-                    map(self._convertToAddress, soup.find_all('Placemark'))
+                    map(self._convertToAddress, soup.kml.Document.find_all('Placemark', recursive=False))
                     )
                 )
             else:
