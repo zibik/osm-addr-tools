@@ -167,56 +167,94 @@ class OsmDb(object):
             # TODO: handle multiple outer ways, and inner ways
             # multiple outer: terc=1019042
             # inner ways: terc=1014082
-            outer = list(self.__osm_obj[(x['type'], x['ref'])] for x in soup.find_all(
-                                                    lambda x: x.name == 'member' and 
-                                                    x['type'] == 'way' and 
-                                                    (x['role'] == 'outer' or not x.get('role')))
-                    )
-            
-            way_by_first_node = utils.groupby(outer, lambda x: x._raw.find('nd')['ref'])
-            way_by_last_node = utils.groupby(outer, lambda x: x._raw.find_all('nd')[-1]['ref'])
-            ret = []
-            cur_elem = outer[0]
-            node_ids = []
-            while outer:
-                ids = list(y['ref'] for y in cur_elem._raw.find_all('nd', recursive=False))
-                if not node_ids:
-                    node_ids.extend(ids)
-                else:
-                    if ids[0] == node_ids[-1]:
-                        pass
-                    elif ids[-1] == node_ids[-1]:
-                        ids = list(reversed(ids))
-                    elif ids[0] == node_ids[0]:
-                        node_ids = list(reversed(node_ids))
-                    elif ids[-1] == node_ids[0]:
-                        node_ids = list(reversed(node_ids))
-                        ids = list(reversed(ids))
-                ret.extend(tuple(map(float, (x.center.x, x.center.y))) for x in (self.__osm_obj[('node', y)] for y in ids))
-                node_ids.extend(ids)
-                outer.remove(cur_elem)
-                if node_ids[0] == node_ids[-1]:
-                    # get only first outer 
-                    # TODO - return MultiPolygon with inner and outer shapes
-                    break
-                # TODO: refactor this
-                # try last node with first node of what's left in outer
-                if outer:
-                    try:
-                        cur_elem = list(filter(lambda x: x in outer, way_by_first_node[node_ids[-1]]))[0]
-                    except (KeyError, IndexError):
-                        try:
-                            # try last node with last node of what's left in outer
-                            cur_elem = list(filter(lambda x: x in outer, way_by_last_node[node_ids[-1]]))[0]
-                        except (KeyError, IndexError):
-                            try:
-                                # try first node with last node of what's left in outer
-                                cur_elem = list(filter(lambda x: x in outer, way_by_last_node[node_ids[0]]))[0]
-                            except (KeyError, IndexError):
-                                # try first node with first node of what's left in outer
-                                cur_elem = list(filter(lambda x: x in outer, way_by_first_node[node_ids[0]]))[0]
+            outer = []
+            inner = []
+            for member in soup.find_all(lambda x: x.name =='member' and x['type'] =='way'):
+                obj = self.__osm_obj[(member['type'], member['ref'])]
+                if member['role'] == 'outer' or not member.get('role'):
+                    outer.append(obj)
+                if member['role'] == 'inner':
+                    inner.append(obj)
 
-            return Polygon(ret)
+            inner = self.get_closed_ways(inner)
+            outer = self.get_closed_ways(outer)
+
+            ret = None
+            for out in outer:
+                val = out
+                for inn in filter(out.contains, inner):
+                    val = val.difference(inn)
+                if not ret:
+                    ret = val
+                else:
+                    ret = ret.union(val)
+            return ret
+
+    def get_closed_ways(self, ways):
+        if not ways:
+            return []
+        ways = list(ways)
+        way_by_first_node = utils.groupby(ways, lambda x: x._raw.find('nd')['ref'])
+        way_by_last_node = utils.groupby(ways, lambda x: x._raw.find_all('nd')[-1]['ref'])
+        ret = []
+        cur_elem = ways[0]
+        node_ids = []
+
+        def _get_ids(elem):
+            return list(y['ref'] for y in cur_elem._raw.find_all('nd', recursive=False))
+
+        def _get_way(id_, dct):
+            if id_ in dct:
+                ret = tuple(filter(lambda x: x in ways, dct[id_]))
+                if ret:
+                    return ret[0]
+            return None
+
+        ids = _get_ids(cur_elem)
+        while ways:
+            #ids = list(y['ref'] for y in cur_elem._raw.find_all('nd', recursive=False))
+            node_ids.extend(ids)
+            ways.remove(cur_elem)
+            if node_ids[0] == node_ids[-1]:
+                # full circle, append to Polygons in ret
+                ret.append(
+                    Polygon(
+                        (x.center.x, x.center.y) for x in (self.__osm_obj[('node', y)] for y in node_ids)
+                    )
+                )
+                if ways:
+                    cur_elem = ways[0]
+                    node_ids = []
+                    ids = _get_ids(cur_elem)
+            else:
+                # not full circle
+                if ways: # check if there is something to work on
+                    last_id = node_ids[-1]
+                    first_id = node_ids[0]
+                    if _get_way(last_id, way_by_first_node):
+                        cur_elem = _get_way(last_id, way_by_first_node)
+                        ids = _get_ids(cur_elem)
+
+                    elif _get_way(last_id, way_by_last_node):
+                        cur_elem = _get_way(last_id, way_by_last_node)
+                        ids = reversed(_get_ids(cur_elem))
+
+                    elif _get_way(first_id, way_by_first_node):
+                        cur_elem = _get_way(first_id, way_by_first_node)
+                        node_ids = reversed(node_ids)
+                        ids = _get_ids(cur_elem)
+
+                    elif _get_way(first_id, way_by_last_node):
+                        cur_elem = _get_way(first_id, way_by_last_node)
+                        node_ids = reversed(node_ids)
+                        ids = reversed(cur_elem)
+                    else:
+                        raise ValueError("Broken geometry for relation: %s", soup['id'])
+                else: # if ways
+                    raise ValueError("Broken geometry for relation: %s", soup['id'])
+        # end while
+        return ret
+
                 
 def main():
     odb = OsmDb(open("adresy.osm").read())
