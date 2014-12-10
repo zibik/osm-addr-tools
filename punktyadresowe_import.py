@@ -222,7 +222,7 @@ relation
     ["admin_level"="7"];
 out bb;
 >;
-out;
+out bb;
             """ % (terc,)
             data = BeautifulSoup(overpass.query(query))
             ret = data.osm.relation.bounds
@@ -233,7 +233,7 @@ out;
                 ret['maxlat'],
             )
             osmdb = OsmDb(data)
-            self.shape = osmdb.getShape(data.osm.relation)
+            self.shape = osmdb.get_shape(data.osm.relation)
 
     def getBbox():
         """
@@ -278,7 +278,7 @@ out;
                     data
                     )
                 ):
-            i.addFixme('Mixed addressing scheme in city - with streets and without. %.1f%% (%d) with streets.' % (dups[i['teryt:simc']]*100, dups_count[i['teryt:simc']]))
+            i.addFixme('Mixed addressing scheme in city - with streets and without. %.1f%% (%d) with streets.' % (dups[i.simc]]*100, dups_count[i.simc]]))
 
     def getAddresses(self):
         data = self.fetchTiles()
