@@ -437,7 +437,7 @@ class GUGiK(AbstractImport):
 
 
     def _convertToAddress(self, soup):
-        desc_soup = lxml.html.fromstring(str(soup.description.string))
+        desc_soup = lxml.html.fromstring(str(soup.find('{http://www.opengis.net/kml/2.2}description').text))
         addr_kv = dict(
             (
              str(x.find('strong').find('span').text),
