@@ -341,7 +341,7 @@ class Merger(object):
                             node.addFixme("Node is %d meters away from imported point"  % dist)
                     self.set_state(node, 'visible')
                 if min(x[0] for x in existing) > 50:
-                    if any(map(lambda x: x[1].objtype in ('way', 'relation') and x.contains(entry.center), existing)):
+                    if any(map(lambda x: x[1].objtype in ('way', 'relation') and x[1].contains(entry.center), existing)):
                         # if any of existing addreses is a way/relation within which we have our address
                         # then skip
                         pass
