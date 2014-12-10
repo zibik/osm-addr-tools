@@ -158,7 +158,12 @@ class OsmDb(object):
             return Point(tuple(map(float, (soup['lon'], soup['lat']))))
 
         if soup.name == 'way':
-            return Polygon(tuple(map(float, (x.center.x, x.center.y))) for x in (self.__osm_obj[('node', y['ref'])] for y in soup.find_all('nd', recursive=False)))
+            nodes = tuple(self.__osm_obj[('node', y['ref'])] for y in soup.find_all('nd', recursive=False))
+            if len(nodes) < 3:
+                self.__log.warning("Way has less than 3 nodes. Check geometry. way:%s" % (soup['id'],))
+                self.__log.warning("Returning geometry as a point")
+                return Point((sum(x.center.x for x in nodes)/len(nodes), sum(x.center.y for x in nodes)/len(nodes)))
+            return Polygon((x.center.x, x.center.y) for x in nodes)
 
         if soup.name == 'relation':
             # returns only outer ways, no exclusion for inner ways
