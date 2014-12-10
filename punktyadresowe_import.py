@@ -278,7 +278,7 @@ out bb;
                     data
                     )
                 ):
-            i.addFixme('Mixed addressing scheme in city - with streets and without. %.1f%% (%d) with streets.' % (dups[i.simc]]*100, dups_count[i.simc]]))
+            i.addFixme('Mixed addressing scheme in city - with streets and without. %.1f%% (%d) with streets.' % (dups[i.simc]*100, dups_count[i.simc]))
 
     def getAddresses(self):
         data = self.fetchTiles()
