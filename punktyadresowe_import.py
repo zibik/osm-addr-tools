@@ -485,7 +485,7 @@ class GUGiK(AbstractImport):
             self.__log.info("Fetching from EMUIA: %s", url)
             soup = lxml.etree.fromstring(urlopen(url).read())
             doc = soup.find('{http://www.opengis.net/kml/2.2}Document') # be namespace aware
-            if doc:
+            if doc is not None:
                 ret.extend(filter(
                     self._isEligible,
                     map(self._convertToAddress, doc.iterchildren('{http://www.opengis.net/kml/2.2}Placemark'))
