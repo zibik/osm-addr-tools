@@ -218,7 +218,7 @@ class OsmAddress(Address):
 
         s = self._soup
         meta_kv = dict((k, str(v)) for (k, v) in s.items() if k in ('id', 'version', 'timestamp', 'changeset', 'uid', 'user'))
-        tags = s.get('tags', {}).copy()
+        tags = dict((k,v) for (k,v) in s.get('tags', {}) if v)
 
         ret = False
         if self.street:
