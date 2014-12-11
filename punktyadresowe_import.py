@@ -459,6 +459,8 @@ class GUGiK(AbstractImport):
         )
         ret.status = addr_kv[str_normalize('STATUS')]
         ret.wazny_do = addr_kv.get(str_normalize('WAZNY_DO'))
+        if not ret.wazny_do:
+            ret.wazny_do = addr_kv.get(str_normalize('WERSJA_DO'))
         return ret
 
     def _isEligible(self, addr):
