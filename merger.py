@@ -540,6 +540,7 @@ class Merger(object):
     def _merge_one_address(self, building, addr):
         # as we merge only address nodes, do not pass anything else
         building['tags'].update(addr.get_tag_soup())
+        self.osmdb.getbyid("%s:%s" % (building['type'], building['id']))[0].set_state('modify')
         self.set_state(addr, 'delete')
         self._updated_nodes.append(self.osmdb.getbyid("%s:%s" % (building['type'], building['id']))[0])
 
