@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import functools
 import multiprocessing
 
 __executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) # pick sane default - number of CPUs
@@ -8,6 +9,13 @@ def parallel_execution(*args):
     return tuple(
         map(lambda x: x.result(),
             [__executor.submit(x) for x in args]
+        )
+    )
+
+def parallel_map(func, lst):
+    return tuple(
+        map(lambda x: x.result(),
+            [__executor.submit(functools.partial(func, x)) for x in lst]
         )
     )
 
