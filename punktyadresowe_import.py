@@ -466,13 +466,13 @@ class GUGiK(AbstractImport):
     def _isEligible(self, addr):
         # TODO: check status?
         if addr.status.upper() != 'ZATWIERDZONY':
-            self.__log.info('Ignoring address %s, because status %s is not ZATWIERDZONY', addr, addr.status.upper())
+            self.__log.debug('Ignoring address %s, because status %s is not ZATWIERDZONY', addr, addr.status.upper())
             return False
         if addr.wazny_do:
-            self.__log.info('Ignoring address %s, because it has set WAZNY_DO=%s', addr, addr.wazny_do)
+            self.__log.debug('Ignoring address %s, because it has set WAZNY_DO=%s', addr, addr.wazny_do)
             return False
         if '?' in addr.housenumber or 'bl' in addr.housenumber:
-            self.__log.info('Ignoring address %s because has strange housenumber: %s', addr, addr.housenumber)
+            self.__log.debug('Ignoring address %s because has strange housenumber: %s', addr, addr.housenumber)
             return False
         if not addr.get_point().within(self.shape):
             # do not report anything about this, this is normal
