@@ -44,7 +44,6 @@ class OsmAddress(Address):
             self._soup['tags'] = {}
         super(OsmAddress, self).__init__(*args, **kwargs)
         self.state = None
-        self._resetChanges()
 
     housenumber = create_property_funcs('addr:housenumber')
     postcode = create_property_funcs('addr:postcode')
@@ -107,9 +106,6 @@ class OsmAddress(Address):
         else:
             # mark change
             self.state = self.state
-
-    def _resetChanges(self):
-        self._changed = False
 
     @property
     def center(self):
@@ -194,13 +190,10 @@ class OsmAddress(Address):
             ret |= update(name)
         if entry.getFixme():
             self.addFixme(entry.getFixme())
-            self._changed = True
-            return True
+            ret = True
+        if ret:
+            self.set_state('modify')
         return ret
-
-    @property
-    def changed(self):
-        return self._changed
 
     def to_osm_soup(self):
         def _removeTag(tags, key):
@@ -231,7 +224,7 @@ class OsmAddress(Address):
             if self.getFixme():
                 ret |= _setTagVal(tags, 'fixme', self.getFixme())
 
-        if ret or self._changed:
+        if ret or self.state == 'modify':
             if bool(tags.get('source')) and (tags['source'] == self.source or 'EMUIA' in tags['source'].upper()):
                 _removeTag(tags, 'source')
             meta_kv['action'] = 'modify'
@@ -447,10 +440,11 @@ class Merger(object):
             'lat': entry.location['lat'],
             'lon': entry.location['lon'],
         }
-        new = OsmAddress.from_address(entry, soup)
+        new = self.osmdb.add_new(soup)
+        new.updateFrom(entry)
         self._new_nodes.append(new)
         # TODO: check that soup gets address tags
-        self.asis['elements'].append(soup)
+        #self.asis['elements'].append(soup)
 
     def _mark_soup_visible(self, obj):
         self._soup_visible.append(obj)
@@ -470,8 +464,8 @@ class Merger(object):
                 self.__log.debug("Processing updated node: %s", str(i))
             elif i in self._new_nodes:
                 self.__log.debug("Processing new node: %s", str(i))
-            elif i.changed or i.state in ('modify', 'delete'):
-                self.__log.debug("Processing node - changed: %s, state: %s; %s", i.changed, i.state, str(i))
+            elif i.state in ('modify', 'delete'):
+                self.__log.debug("Processing node - changed: %s, %s", i.state, str(i))
 
         return tuple(ret.values())
 

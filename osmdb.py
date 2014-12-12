@@ -101,6 +101,8 @@ class OsmDb(object):
         for i in indexes.keys():
             setattr(self, 'getby' + i, makegetfromindex(i))
             setattr(self, 'getall' + i, makegetallindexed(i))
+
+        self.__osm_obj = dict(((x['type'], x['id']), OsmDbEntry(self._valuefunc(x), x, self)) for x in self._osmdata['elements'])
         self.update_index()
 
     def update_index(self):
@@ -108,16 +110,12 @@ class OsmDb(object):
 
         self.__index = index.Index()
         self.__index_entries = {}
-        self.__osm_obj = {}
         self.__custom_indexes = dict((x, {}) for x in self.__custom_indexes_conf.keys())
 
-        for i in self._osmdata['elements']:
-            val = OsmDbEntry(self._valuefunc(i), i, self)
-            self.__osm_obj[(i['type'], i['id'])] = val
-
-            pos = get_soup_position(i)
+        for (key, val) in self.__osm_obj.items():
+            pos = get_soup_position(val._raw)
             if pos:
-                _id = _get_id(i)
+                _id = _get_id(val._raw)
                 self.__index.insert(_id, pos)
 
                 self.__index_entries[_id] = val
@@ -132,6 +130,11 @@ class OsmDb(object):
                         custom_index[key] = entry
                     entry.append(val)
 
+    def add_new(self, new):
+        self._osmdata['elements'].append(new)
+        ret = OsmDbEntry(self._valuefunc(new), new, self)
+        self.__osm_obj[(new['type'], new['id'])] = ret
+        return ret
 
     def get_all_values(self):
         return self.__index_entries.values()
