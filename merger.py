@@ -12,7 +12,7 @@ from shapely.geometry import Point
 import shapely.geometry.base
 from punktyadresowe_import import iMPA, GUGiK, Address
 import overpass
-from utils import parallel_execution
+from utils import parallel_map
 from lxml.builder import E
 import lxml.etree
 
@@ -184,13 +184,13 @@ class OsmAddress(Address):
         def update(name):
             old = getattr(self, name)
             new = getattr(entry, name)
-            if old and new and old != new:
+            if new and old != new:
                 setattr(self, name, new)
                 return True
             return False
 
         ret = False
-        for name in ('street', 'city', 'housenumber', 'sym_ul', 'simc', 'source'):
+        for name in ('street', 'city', 'housenumber'): # TODO: , 'sym_ul', 'simc', 'source'):
             ret |= update(name)
         if entry.getFixme():
             self.addFixme(entry.getFixme())
@@ -218,17 +218,18 @@ class OsmAddress(Address):
 
         s = self._soup
         meta_kv = dict((k, str(v)) for (k, v) in s.items() if k in ('id', 'version', 'timestamp', 'changeset', 'uid', 'user'))
-        tags = dict((k,v.strip()) for (k,v) in s.get('tags', {}) if v.strip())
+        tags = dict((k,v.strip()) for (k,v) in s.get('tags', {}).items() if v.strip())
 
         ret = False
-        if self.street:
-            ret |= _removeTag(tags, 'addr:place')
-        else:
-            ret |= _setTagVal(tags, 'addr:place', self.city)
-            ret |= _removeTag(tags, 'addr:street')
-            ret |= _removeTag(tags, 'addr:city')
-        if self.getFixme():
-            ret |= _setTagVal(tags, 'fixme', self.getFixme())
+        if self.housenumber:
+            if self.street:
+                ret |= _removeTag(tags, 'addr:place')
+            else:
+                ret |= _setTagVal(tags, 'addr:place', self.city)
+                ret |= _removeTag(tags, 'addr:street')
+                ret |= _removeTag(tags, 'addr:city')
+            if self.getFixme():
+                ret |= _setTagVal(tags, 'fixme', self.getFixme())
 
         if ret or self._changed:
             if bool(tags.get('source')) and (tags['source'] == self.source or 'EMUIA' in tags['source'].upper()):
@@ -254,7 +255,7 @@ class OsmAddress(Address):
 class Merger(object):
     __log = logging.getLogger(__name__).getChild('Merger')
 
-    def __init__(self, impdata, asis, terc):
+    def __init__(self, impdata, asis, terc, parallel_process_func=lambda func, elems: tuple(map(func, elems))):
         self.impdata = impdata
         self.asis = asis
         self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
@@ -266,6 +267,7 @@ class Merger(object):
         self._soup_visible = []
         self._import_area_shape = get_boundary_shape(terc)
         self._state_changes = []
+        self._parallel_process_func = parallel_process_func
 
     def _create_index(self):
         self.osmdb.update_index()
@@ -284,9 +286,10 @@ class Merger(object):
         node.set_state(value)
 
     def _pre_merge(self):
-        for entry in self.impdata:
+        def process(entry):
             self._fix_similar_addr(entry)
             tuple(map(lambda x: x(self, entry), self.pre_func))
+        self._parallel_process_func(process, self.impdata)
 
     def _fix_similar_addr(self, entry):
         # look for near same address
@@ -327,8 +330,7 @@ class Merger(object):
                     self.set_state(node, 'delete')
 
     def _do_merge(self):
-        for entry in self.impdata:
-            self._do_merge_one(entry)
+        self._parallel_process_func(self._do_merge_one, self.impdata)
 
     def _do_merge_one(self, entry):
         self.__log.debug("Processing address: %s", entry)
@@ -753,6 +755,7 @@ def main():
     if len(addr['elements']) == 0:
         __log.warning("Warning - address data is empty. Check your file/terc code")
 
+    #m = Merger(data, addr, terc, parallel_process_func=parallel_map)
     m = Merger(data, addr, terc)
     m.post_func.append(m.merge_addresses)
     m.merge()
