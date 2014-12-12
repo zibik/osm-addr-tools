@@ -98,7 +98,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         else:
             self.postcode = ''
         if street:
-            self.street = mapstreet(street.replace('  ', ' '), sym_ul)
+            self.street = mapstreet(re.sub(' +', ' ', street), sym_ul)
         else:
             self.street = ''
         self.city = mapcity(city, simc)
