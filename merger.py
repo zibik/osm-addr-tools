@@ -186,8 +186,12 @@ class OsmAddress(Address):
             return False
 
         ret = False
-        for name in ('street', 'city', 'housenumber'): # TODO: , 'sym_ul', 'simc', 'source'):
+        for name in ('street', 'city', 'housenumber'):
             ret |= update(name)
+        # update without changing ret status, so adding these fields will not trigger a change in OSM
+        # but if there is something else added, this will get updated too
+        for name in ('sym_ul', 'simc'):
+            update(name)
         if entry.getFixme():
             self.addFixme(entry.getFixme())
             ret = True
@@ -594,6 +598,7 @@ class Merger(object):
                     c = candidates_within[0]
                     if c.housenumber:
                         self.set_state(c, 'visible')
+                        self.set_state(addr, 'visible')
                     else:
                         try:
                             lst = ret[c.osmid]
