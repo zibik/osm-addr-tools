@@ -89,11 +89,15 @@ def convertToOSM(lst):
 
     return ret.prettify()
 
+
 class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 'street', 'city', 'sym_ul', 'simc', 'source', 'location'])):
+    __POSTCODE = re.compile('^[0-9]{2}-[0-9]{3}$')
+    __NUMERIC = re.compile('^[0-9]*$')
+
     def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location=''):
         #super(Address, self).__init__(*args, **kwargs)
         self.housenumber = housenumber
-        if postcode and postcode != '00-000' and re.match('^[0-9]{2}-[0-9]{3}$', postcode):
+        if postcode and postcode != '00-000' and self.__POSTCODE.match(postcode):
             self.postcode = postcode
         else:
             self.postcode = ''
@@ -102,12 +106,12 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         else:
             self.street = ''
         self.city = mapcity(city, simc)
-        if sym_ul: # add sanity cheks
+        if sym_ul and self.__NUMERIC.match(sym_ul):
             self.sym_ul = sym_ul
         else:
             self.sym_ul = ''
-        if simc:
-            self.simc = simc #add sanity checks
+        if simc and self.__NUMERIC.match(simc):
+            self.simc = simc
         else:
             self.simc = ''
         self.source = source
