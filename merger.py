@@ -539,7 +539,6 @@ class Merger(object):
         self._merge_addresses_buffer(0)
         self._merge_addresses_buffer(2)
         self._merge_addresses_buffer(5)
-        self._merge_addresses_buffer(10)
 
     def _merge_one_address(self, building, addr):
         # as we merge only address nodes, do not pass anything else
