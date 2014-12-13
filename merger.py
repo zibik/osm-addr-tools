@@ -79,23 +79,6 @@ class OsmAddress(Address):
             ret.state = obj['action']
         return ret
 
-    @staticmethod
-    def from_address(address, soup):
-        ret = OsmAddress(
-            housenumber = address.housenumber,
-            postcode    = address.postcode,
-            street      = address.street,
-            city        = address.city,
-            sym_ul      = address.sym_ul,
-            simc        = address.simc,
-            source      = address.source,
-            location    = address.location,
-            soup        = soup
-        )
-        if address.getFixme():
-            ret.addFixme(address.getFixme())
-        return ret
-
     def set_state(self, val):
         if val == 'visible' and self.state not in ('modify', 'delete'):
             self.state = val
@@ -190,7 +173,7 @@ class OsmAddress(Address):
             ret |= update(name)
         # update without changing ret status, so adding these fields will not trigger a change in OSM
         # but if there is something else added, this will get updated too
-        for name in ('sym_ul', 'simc'):
+        for name in ('sym_ul', 'simc', 'source'):
             update(name)
         if entry.getFixme():
             self.addFixme(entry.getFixme())
