@@ -422,7 +422,7 @@ class Merger(object):
                 if found:
                     return True
             self.__log.info("Found probably same address node at (%s, %s). Skipping. Import address is: %s, osm addresses: %s",
-                entry.location['lon'], entry.location['lat'], entry, ", ".join(map(str, candidates_same))
+                entry.location['lon'], entry.location['lat'], entry, ", ".join(map(lambda x: str(x.entry), candidates_same))
             )
             return True
         return False
