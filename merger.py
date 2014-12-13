@@ -495,7 +495,7 @@ class Merger(object):
                 )
             if node['type'] == 'member':
                 return get_reffered(getbyid("%s:%s" % (node['type'], node['ref']))[0])
-            if node.name == 'relation':
+            if node['type'] == 'relation':
                 return itertools.chain(
                     itertools.chain.from_iterable(map(get_reffered, node['members'])),
                     (('relation', node['id']),)
