@@ -497,7 +497,7 @@ class Merger(object):
                 return get_reffered(getbyid("%s:%s" % (node['type'], node['ref']))[0])
             if node['type'] == 'relation':
                 return itertools.chain(
-                    itertools.chain.from_iterable(map(get_reffered, node['members'])),
+                    itertools.chain.from_iterable(map(get_reffered, (getbyid("%s:%s" % (x['type'], x['ref']))[0] for x in node['members']))),
                     (('relation', node['id']),)
                 )
             raise ValueError("Unkown node type: %s" % (node.name))
