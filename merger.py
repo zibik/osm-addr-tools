@@ -689,6 +689,7 @@ def main():
     address_group.add_argument('--terc', help='teryt:terc code, for which to download addresses from OSM using Overpass API')
     parser.add_argument('--output', type=argparse.FileType('w+b'), help='output file with merged data (default: result.osm)', default='result.osm')
     parser.add_argument('--full', help='Use to output all address data for region, not only modified address data as per default', action='store_const', const=True, dest='full_mode', default=False)
+    parser.add_argument('--no-merge', help='Do not merger addresses with buildings', action='store_const', const=True, dest='no_merge', default=False)
     parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
     parser.add_argument('--import-wms', help='WMS address for address layer, ex: ' +
         'http://www.punktyadresowe.pl/cgi-bin/mapserv?map=/home/www/impa2/wms/luban.map . Bounding box is still fetched via iMPA', dest='wms')
@@ -741,7 +742,8 @@ def main():
 
     #m = Merger(data, addr, terc, parallel_process_func=parallel_map)
     m = Merger(data, addr, terc)
-    m.post_func.append(m.merge_addresses)
+    if not args.no_merge:
+        m.post_func.append(m.merge_addresses)
     m.merge()
 
     if args.full_mode:
