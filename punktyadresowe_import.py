@@ -140,7 +140,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         else:
             node.append(ret.new_tag('tag', k='addr:place', v=self.city))
 
-        node.append(ret.new_tag('tag', k='addr:simc', v=self.simc))
+        node.append(ret.new_tag('tag', k='teryt:simc', v=self.simc))
         node.append(ret.new_tag('tag', k='source:addr', v=self.source))
         if self._fixme:
             node.append(ret.new_tag('tag', k='fixme', v=" ".join(self.getFixme())))
