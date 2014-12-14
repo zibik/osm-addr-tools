@@ -263,7 +263,7 @@ out bb;
         raise NotImplementedError("")
 
     def _checkDuplicatesInImport(self, data):
-        addr_index = groupby(data, lambda x: (x.city, x.housenumber, x.street))
+        addr_index = groupby(data, lambda x: (x.city, x.housenumber.replace(' ', '').upper(), x.street))
 
         for (addr, occurances) in filter(lambda x: len(x[1]) > 1, addr_index.items()):
             self.__log.warning("Duplicte addresses in import: %s", addr)
