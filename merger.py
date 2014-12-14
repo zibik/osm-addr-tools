@@ -26,6 +26,7 @@ __log = logging.getLogger(__name__)
 # easy_install3 Rtree
 
 # TODO: import admin_level=8 for area, and add addr:city if missing for addresses within that area (needs greater refactoring)
+# TODO: check for alone addresses. Look for addresses that have greater minimal distance to greater than ?? avg*5? avg+stddev*3? http://en.wikipedia.org/wiki/Chauvenet%27s_criterion ? http://en.wikipedia.org/wiki/Peirce%27s_criterion ?
 __geod = pyproj.Geod(ellps="WGS84")
 
 def create_property_funcs(field):
