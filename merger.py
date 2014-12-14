@@ -500,6 +500,7 @@ class Merger(object):
         self.mark_not_existing()
         for i in self.post_func:
             i()
+        self._create_index()
 
     def mark_not_existing(self):
         imp_addr = set(map(lambda x: x.get_index_key(), self.impdata))
@@ -511,11 +512,11 @@ class Merger(object):
             self.osmdb.getalladdress())) - imp_addr
 
         self.__log.debug("Marking %d not existing addresses", len(to_delete))
-        for addr in to_delete:
+        for addr in filter(any, to_delete): # at least on addr field is filled in
             for node in self.osmdb.getbyaddress(addr):
-                if node.only_address_node() and self._import_area_shape.contains(node.center):
+                if self._import_area_shape.contains(node.center):
                     # report only points within area of interest
-                    self.__log.debug("Marking node to delete: %s, %s", node.osmid, str(node.entry))
+                    self.__log.debug("Marking node to delete - address %s does not exist: %s, %s", addr, node.osmid, str(node.entry))
                     node.addFixme('Check address existance')
 
     def merge_addresses(self):
