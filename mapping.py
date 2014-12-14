@@ -22,6 +22,7 @@ addr_map = {
  'Al. Spacerowa': 'aleja Spacerowa',
  'Al. Wodniaków': 'aleja Wodniaków',
  'Andersa Władysława': 'Władysława Andersa',
+ 'Gen. Władysława Andersa': 'Generała Władysława Andersa',
  'Anny Św.': 'Świętej Anny',
  'Arciszewskiego Krzysztofa': 'Krzysztofa  Arciszewskiego',
  'Asnyka A.': 'Adama Asnyka',
