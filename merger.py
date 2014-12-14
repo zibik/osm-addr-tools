@@ -65,7 +65,7 @@ class OsmAddress(Address):
             housenumber = cache.get('addr:housenumber', ''),
             postcode    = cache.get('addr:postcode', ''),
             street      = cache.get('addr:street', ''),
-            city        = cache.get('addr:city', '') if cache.get('addr:street') else cache.get('addr:place', ''),
+            city        = cache.get('addr:place', '') if cache.get('addr:place') else cache.get('addr:city', ''),
             sym_ul      = cache.get('teryt:symul', ''),
             simc        = cache.get('teryt:simc', ''),
             source      = cache.get('source:addr', ''),
@@ -326,7 +326,7 @@ class Merger(object):
         ))
 
     def _do_merge_by_existing(self, entry):
-        existing = self.osmdb.getbyaddress(entry.get_index_key())
+        existing = tuple(filter(lambda x: self._import_area_shape.contains(x.center), self.osmdb.getbyaddress(entry.get_index_key())))
         self.__log.debug("Found %d same addresses", len(existing))
         # create tuples (distance, entry) sorted by distance
         existing = sorted(map(lambda x: (x.distance(entry), x), existing), key=lambda x: x[0])
@@ -405,10 +405,11 @@ class Merger(object):
                     self._update_node(node, entry)
                 if found:
                     return True
-            self.__log.info("Found probably same address node at (%s, %s). Skipping. Import address is: %s, osm addresses: %s",
-                entry.location['lon'], entry.location['lat'], entry, ", ".join(map(lambda x: str(x.entry), candidates_same))
-            )
-            return True
+            if any(map(lambda x: x.housenumber and x.city, candidates_same)):
+                self.__log.info("Found probably same address node at (%s, %s). Skipping. Import address is: %s, osm addresses: %s",
+                    entry.location['lon'], entry.location['lat'], entry, ", ".join(map(lambda x: str(x.entry), candidates_same))
+                )
+                return True
         return False
 
     def _do_merge_create_point(self, entry):
@@ -514,11 +515,12 @@ class Merger(object):
 
         self.__log.debug("Marking %d not existing addresses", len(to_delete))
         for addr in filter(any, to_delete): # at least on addr field is filled in
-            for node in self.osmdb.getbyaddress(addr):
+            for node in filter(lambda x: self._import_area_shape.contains(x.center), self.osmdb.getbyaddress(addr)):
                 if self._import_area_shape.contains(node.center):
                     # report only points within area of interest
                     self.__log.debug("Marking node to delete - address %s does not exist: %s, %s", addr, node.osmid, str(node.entry))
                     node.addFixme('Check address existance')
+                    self.set_state(node, 'visible')
 
     def merge_addresses(self):
         self._merge_addresses_buffer(0)
