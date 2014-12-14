@@ -545,7 +545,10 @@ def main():
             with open(gmina+file_suffix, "w+", encoding='utf-8') as f:
                 f.write(write_conv_func(ret))
     else:
-        with open('result.osm', 'w+', encoding='utf-8') as f:
+        fname = 'result.osm'
+        if args.terc:
+            fname = '%s.osm' % (args.terc,)
+        with open(fname, 'w+', encoding='utf-8') as f:
             f.write(write_conv_func(rets[0]))
 
 if __name__ == '__main__':
