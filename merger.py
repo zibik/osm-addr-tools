@@ -158,7 +158,7 @@ class OsmAddress(Address):
         return self._soup['id'] < 0
 
     def get_tag_soup(self):
-        return self._soup['tags']
+        return dict((k, v) for (k, v) in self._soup['tags'].items() if v)
 
     def updateFrom(self, entry):
         def update(name):
