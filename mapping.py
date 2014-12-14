@@ -330,6 +330,7 @@ addr_map = {
  'Sikorskiego W.': 'Generała Władysława Sikorskiego',
  'Sikorskiego Władysława': 'Generała Władysława Sikorskiego',
  'Sikorskiego': 'Generała Władysława Sikorskiego',
+ 'Gen. Władysława Sikorskiego': 'Generała Władysława Sikorskiego',
  'Skalskiego': 'Generała Stanisława Skalskiego',
  'Skargi P.': 'Piora Skargi',
  'Skargi Piotra': 'Piotra Skargi',
