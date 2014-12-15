@@ -38,7 +38,7 @@ import pyproj
 import re
 from shapely.geometry import Point
 
-from osmdb import OsmDb
+from osmdb import OsmDb, distance
 import overpass
 from mapping import mapstreet, mapcity
 from utils import parallel_execution, groupby
@@ -124,6 +124,10 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
 
     def addFixme(self, value):
         self._fixme.append(value)
+
+    @property
+    def fixmes(self):
+        return self._fixme
 
     def getFixme(self):
         return ",".join(self._fixme)
@@ -482,6 +486,31 @@ class GUGiK(AbstractImport):
             # do not report anything about this, this is normal
             return False
         return True
+
+    def _checkDuplicatesInImport(self, data):
+        super(GUGiK, self)._checkDuplicatesInImport(data)
+        addr_index = groupby(
+            filter(lambda x: 'Duplicate address in import' in x.fixmes, data),
+            lambda x: (x.city, x.housenumber.replace(' ', '').upper(), x.street)
+        )
+
+        for (addr, occurances) in filter(lambda x: len(x[1]) > 1, addr_index.items()):
+            for n in range(len(occurances)-1):
+                addr1 = occurances[n]
+                addr2 = occurances[n+1]
+                if distance(addr1.center, addr2.center) < 10:
+                    # addresses are closer than 10m
+                    # remove first, move second to average of these two
+                    self.__log.info("Merging duplicate addresses: %s, position: %s and %s" % (addr1, addr1.getLatLon(), addr2.getLatLon()))
+                    data.remove(addr1)
+                    l1 = addr1.getLatLon()
+                    l2 = addr2.getLatLon()
+                    addr2.location = {
+                        'lat': (l1[0]+l2[0])/2,
+                        'lon': (l1[1]+l2[1])/2
+                    }
+
+
 
     def fetchTiles(self):
         bbox = self.getBbox2180()
