@@ -5,9 +5,8 @@ import logging
 import io
 import itertools
 import sys
-from osmdb import OsmDb, get_soup_center
+from osmdb import OsmDb, get_soup_center, distance
 import json
-import pyproj
 from shapely.geometry import Point
 import shapely.geometry.base
 from punktyadresowe_import import iMPA, GUGiK, Address
@@ -27,7 +26,6 @@ __log = logging.getLogger(__name__)
 
 # TODO: import admin_level=8 for area, and add addr:city if missing for addresses within that area (needs greater refactoring)
 # TODO: check for alone addresses. Look for addresses that have greater minimal distance to greater than ?? avg*5? avg+stddev*3? http://en.wikipedia.org/wiki/Chauvenet%27s_criterion ? http://en.wikipedia.org/wiki/Peirce%27s_criterion ?
-__geod = pyproj.Geod(ellps="WGS84")
 
 def create_property_funcs(field):
     def getx(self):
@@ -662,14 +660,6 @@ out bb;
     rel = tuple(x for x in soup['elements'] if x['type'] == 'relation')[0]
     return osmdb.get_shape(rel)
 
-
-def distance(a, b):
-    """returns distance betwen a and b points in meters"""
-    if isinstance(a, shapely.geometry.base.BaseGeometry):
-        a = (a.y, a.x)
-    if isinstance(b, shapely.geometry.base.BaseGeometry):
-        b = (b.y, b.x)
-    return __geod.inv(a[1], a[0], b[1], b[0])[2]
 
 def buffer(shp, meters=0):
     # 0.0000089831528 is the 1m length in arc degrees of great circle

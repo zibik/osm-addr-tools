@@ -1,8 +1,10 @@
 from rtree import index
 from bs4 import BeautifulSoup
 from shapely.geometry import Point, Polygon
+import shapely
 import utils
 import logging
+import pyproj
 
 
 
@@ -47,6 +49,16 @@ def get_soup_center(soup):
     # lat, lon
     pos = get_soup_position(soup)
     return (pos[0] + pos[2])/2, (pos[1] + pos[3])/2
+
+__geod = pyproj.Geod(ellps="WGS84")
+def distance(a, b):
+    """returns distance betwen a and b points in meters"""
+    if isinstance(a, shapely.geometry.base.BaseGeometry):
+        a = (a.y, a.x)
+    if isinstance(b, shapely.geometry.base.BaseGeometry):
+        b = (b.y, b.x)
+    return __geod.inv(a[1], a[0], b[1], b[0])[2]
+
 
 class OsmDbEntry(object):
     def __init__(self, entry, raw, osmdb):
@@ -182,9 +194,11 @@ class OsmDb(object):
                 if member['role'] == 'inner':
                     inner.append(obj)
 
-            inner = self.get_closed_ways(inner)
-            outer = self.get_closed_ways(outer)
-
+            try:
+                inner = self.get_closed_ways(inner)
+                outer = self.get_closed_ways(outer)
+            except ValueError:
+                raise ValueError("Broken geometry for relation: %s" % (soup['id'],))
             ret = None
             for out in outer:
                 val = out
@@ -255,9 +269,9 @@ class OsmDb(object):
                         node_ids = reversed(node_ids)
                         ids = reversed(cur_elem)
                     else:
-                        raise ValueError("Broken geometry for relation: %s", soup['id'])
+                        raise ValueError
                 else: # if ways
-                    raise ValueError("Broken geometry for relation: %s", soup['id'])
+                    raise ValueError
         # end while
         return ret
 
