@@ -148,12 +148,11 @@ class OsmDb(object):
 
     def get_shape(self, soup):
         id_ = soup['id']
-        try:
-            return self.__cached_shapes[id_]
-        except KeyError:
+        ret = self.__cached_shapes.get(id_)
+        if not ret:
             ret = self.get_shape_cached(soup)
             self.__cached_shapes[id_] = ret
-            return ret
+        return ret
 
     def get_shape_cached(self, soup):
         if soup['type'] == 'node':
