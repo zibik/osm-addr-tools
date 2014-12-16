@@ -448,11 +448,11 @@ class Merger(object):
 
         for (_id, i) in ret.items():
             if i in self._updated_nodes:
-                self.__log.debug("Processing updated node: %s", str(i))
+                self.__log.debug("Processing updated node: %s", str(i.entry))
             elif i in self._new_nodes:
-                self.__log.debug("Processing new node: %s", str(i))
+                self.__log.debug("Processing new node: %s", str(i.entry))
             elif i.state in ('modify', 'delete'):
-                self.__log.debug("Processing node - changed: %s, %s", i.state, str(i))
+                self.__log.debug("Processing node - changed: %s, %s", i.state, str(i.entry))
 
         return tuple(ret.values())
 
