@@ -13,7 +13,9 @@
 #       portmaster www/py-beautifulsoup
 #
 # TODO:
-# - extract validations (mixed addressing scheme) to external module
+# - add spellchecking for street and city based on TERYT dictionaries
+#       - street spellchecking - split into words and look for similar words in dictionary
+#       - ideas: http://en.wikipedia.org/wiki/Levenshtein_distance , ngrams (http://en.wikipedia.org/wiki/N-gram), Norvig spell-checker - http://norvig.com/spell-correct.html
 
 import sys
 if sys.version_info.major == 2:
