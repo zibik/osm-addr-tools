@@ -257,17 +257,17 @@ class OsmDb(object):
 
                     elif _get_way(last_id, way_by_last_node):
                         cur_elem = _get_way(last_id, way_by_last_node)
-                        ids = reversed(_get_ids(cur_elem))
+                        ids = list(reversed(_get_ids(cur_elem)))
 
                     elif _get_way(first_id, way_by_first_node):
                         cur_elem = _get_way(first_id, way_by_first_node)
-                        node_ids = reversed(node_ids)
+                        node_ids = list(reversed(node_ids))
                         ids = _get_ids(cur_elem)
 
                     elif _get_way(first_id, way_by_last_node):
                         cur_elem = _get_way(first_id, way_by_last_node)
-                        node_ids = reversed(node_ids)
-                        ids = reversed(_get_ids(cur_elem))
+                        node_ids = list(reversed(node_ids))
+                        ids = list(reversed(_get_ids(cur_elem)))
                     else:
                         raise ValueError
                 else: # if ways
