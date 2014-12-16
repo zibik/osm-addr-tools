@@ -285,11 +285,8 @@ out bb;
         dups = dict((k,v) for k, v in filter(lambda x: 0 < x[1] and x[1] < 1, dups.items()))
 
         for i in filter(
-                lambda x: not bool(x.street),
-                filter(
-                    lambda x: x.simc in dups.keys(),
-                    data
-                    )
+                lambda x: not bool(x.street) and x.simc in dups.keys(),
+                data
                 ):
             i.addFixme('Mixed addressing scheme in city - with streets and without. %.1f%% (%d) with streets.' % (dups[i.simc]*100, dups_count[i.simc]))
 
