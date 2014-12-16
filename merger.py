@@ -497,9 +497,9 @@ class Merger(object):
         # recreate index
         self._create_index()
 
-        self.mark_not_existing()
         for i in self.post_func:
             i()
+        self.mark_not_existing()
         self._create_index()
 
     def mark_not_existing(self):
