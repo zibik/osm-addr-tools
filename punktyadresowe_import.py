@@ -272,7 +272,7 @@ out bb;
         addr_index = groupby(data, lambda x: (x.city, x.housenumber.replace(' ', '').upper(), x.street))
 
         for (addr, occurances) in filter(lambda x: len(x[1]) > 1, addr_index.items()):
-            self.__log.warning("Duplicte addresses in import: %s", addr)
+            self.__log.warning("Duplicate addresses in import: %s", addr)
             for i in occurances:
                 i.addFixme('Duplicate address in import')
 
