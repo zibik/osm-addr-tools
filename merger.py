@@ -176,7 +176,7 @@ class OsmAddress(Address):
             update(name)
         if entry.getFixme():
             self.addFixme(entry.getFixme())
-            ret = True
+            self.set_state('visible')
         if ret:
             self.set_state('modify')
         return ret
@@ -499,6 +499,7 @@ class Merger(object):
 
         for i in self.post_func:
             i()
+        self._create_index()
         self.mark_not_existing()
         self._create_index()
 
