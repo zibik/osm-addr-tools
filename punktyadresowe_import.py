@@ -460,7 +460,7 @@ class GUGiK(AbstractImport):
                 addr_kv.get(str_normalize('NAZWA_ULICY')),
                 addr_kv[str_normalize('NAZWA_MIEJSCOWOSCI')],
                 addr_kv.get(str_normalize('TERYT_ULICY')),
-                addr_kv[str_normalize('TERYT_MIEJSCOWOSCI')],
+                addr_kv.get(str_normalize('TERYT_MIEJSCOWOSCI')),
                 'emuia.gugik.gov.pl',
                 {'lat': coords[1], 'lon': coords[0]}
         )
