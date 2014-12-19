@@ -360,7 +360,7 @@ class iMPA(AbstractImport):
             'VERSION': '1.1.1',
             'SERVICE': 'WMS',
             'REQUEST': 'GetMap',
-            'LAYERS': layer,
+            'LAYERS': layer+',ulice',
             'FORMAT': 'image/png',
             'TRANSPARENT': 'true',
         }
@@ -383,7 +383,11 @@ class iMPA(AbstractImport):
         ))
         try:
             (lon, lat) = map(lambda x: x[2:], kv[str_normalize('GPS (WGS 84)')].split(', ', 1))
-            (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(', 1)
+            if '(' in kv[str_normalize('Nazwa ulicy(Id GUS)')]:
+                (str_name, str_id) = kv[str_normalize('Nazwa ulicy(Id GUS)')].rsplit('(', 1)
+            else:
+                str_name = kv[str_normalize('Nazwa ulicy(Id GUS)')]
+                str_id = ""
             (city_name, city_id) = kv[str_normalize('Miejscowość(Id GUS)')].rsplit('(', 1)
 
             if float(lon) < 14 or float(lon) > 25 or float(lat) < 49 or float(lat) > 56:
@@ -396,7 +400,7 @@ class iMPA(AbstractImport):
                 city_name.strip(),
                 str_id[:-1], # sym_ul
                 city_id[:-1], # simc
-                kv[str_normalize('Źródło danych')],
+                kv.get(str_normalize('Źródło danych'), ''),
                 {'lat': lat, 'lon': lon} # location
             )
         except KeyError:
