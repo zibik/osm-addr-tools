@@ -98,7 +98,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
 
     def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location=''):
         #super(Address, self).__init__(*args, **kwargs)
-        self.housenumber = housenumber
+        self.housenumber = housenumber.replace(' ', '')
         if postcode and postcode != '00-000' and self.__POSTCODE.match(postcode):
             self.postcode = postcode
         else:
