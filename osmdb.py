@@ -1,6 +1,6 @@
 from rtree import index
 from bs4 import BeautifulSoup
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, LineString
 import shapely
 import utils
 import logging
@@ -179,6 +179,14 @@ class OsmDb(object):
             return Polygon((x.center.x, x.center.y) for x in nodes)
 
         if soup['type'] == 'relation':
+            if soup['tags'].get('type') == 'network':
+                # shortcut for stupid relations with addresses
+                return LineString(
+                    map(
+                        lambda x: x.center,
+                        (self.__osm_obj[(x['type'], x['ref'])] for x in soup['members'])
+                    )
+                ).centroid
             # returns only outer ways, no exclusion for inner ways
             # hardest one
             # outer ways
