@@ -179,7 +179,7 @@ class OsmDb(object):
             return Polygon((x.center.x, x.center.y) for x in nodes)
 
         if soup['type'] == 'relation':
-            if soup['tags'].get('type') == 'network':
+            if soup['tags'].get('type') in ('network', 'level'):
                 # shortcut for stupid relations with addresses
                 return LineString(
                     map(
