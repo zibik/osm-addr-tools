@@ -125,7 +125,7 @@ class OsmAddress(Address):
             return True
         return False
 
-    def getshape(self):
+    def shape(self):
         raise NotImplementedError
 
     @property
@@ -362,7 +362,6 @@ class Merger(object):
         # look for building nearby
         candidates = list(self.osmdb.nearest(entry.center, num_results=10))
         candidates_within = list(filter(lambda x: x.objtype in ('way', 'relation') and x.contains(entry.center), candidates))
-
         self.__log.debug("Found %d buildings containing address", len(candidates_within))
 
         if candidates_within:
@@ -641,7 +640,7 @@ def getAddresses(bbox):
     ["building"];
 );
 out meta bb qt;
->;
+>>;
 out meta bb qt;
 """ % (bbox, bbox, bbox, bbox, bbox,)
     return json.loads(overpass.query(query))
