@@ -1,5 +1,5 @@
 from flask import Flask, make_response as _make_response
-from merger import mergeInc, mergeFull, getAddresses
+from merger import Merger, getAddresses
 from punktyadresowe_import import iMPA
 import utils
 import logging
@@ -11,26 +11,33 @@ def make_response(ret, code):
     resp.mimetype ='text/xml; charset=utf-8'
     return resp
 
-@app.route("/osm/adresy/iMPA/<name>.osm", methods=["GET", ])
-def differentialImport(name):
+def get_IMPA_Merger(name):
     imp = iMPA(name)
     terc = imp.getConf()['terc']
+    data = imp.getAddresses()
+    s = min(map(lambda x: x.center.y, data))
+    w = min(map(lambda x: x.center.x, data))
+    n = max(map(lambda x: x.center.y, data))
+    e = max(map(lambda x: x.center.x, data))
+    addr =  getAddresses(map(str,(s, w, n, e)))
 
-    (addr, data) = utils.parallel_execution(lambda: getAddresses(terc), imp.fetchTiles)
     
-    ret = mergeInc(addr, data)
+    m = Merger(data, addr, terc)
+    m.post_func.append(m.merge_addresses)
+    m.merge()
+    return m
+
+@app.route("/osm/adresy/iMPA/<name>.osm", methods=["GET", ])
+def differentialImport(name):
+    m = get_IMPA_Merger(name)
+    ret = m.get_incremental_result()
     
     return make_response(ret, 200)
 
 @app.route("/osm/adresy/iMPA_full/<name>.osm", methods=["GET", ])
 def fullImport(name):
-    imp = iMPA(name)
-    terc = imp.getConf()['terc']
-
-    (addr, data) = utils.parallel_execution(lambda: getAddresses(terc), imp.fetchTiles)
-    
-    ret = mergeFull(addr, data)
-    
+    m = get_IMPA_Merger(name)
+    ret = m.get_full_result()
     return make_response(ret, 200)
 
 if __name__ == '__main__':
