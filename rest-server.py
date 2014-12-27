@@ -13,7 +13,7 @@ def make_response(ret, code):
 
 def get_IMPA_Merger(name):
     imp = iMPA(name)
-    terc = imp.getConf()['terc']
+    terc = imp.terc
     data = imp.getAddresses()
     s = min(map(lambda x: x.center.y, data))
     w = min(map(lambda x: x.center.x, data))
