@@ -549,7 +549,7 @@ def getDict(keyname, valuename, coexitingtags=None):
     # ret = dict(symul, dict(street, count))
     inconsistent = dict((x[0], x[1].keys()) for x in filter(lambda x: len(x[1]) > 1, ret.items()))
     for (symul, streetlst) in inconsistent.items():
-        __log.info("Inconsitent mapping for teryt:sym_ul = %s, values: %s", symul, ", ".join(streetlst))
+        __log.info("Inconsitent mapping for %s = %s, values: %s", keyname, symul, ", ".join(streetlst))
     return ret
 
 def storedDict(fetcher, filename):
