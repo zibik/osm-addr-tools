@@ -51,6 +51,7 @@ class OsmAddress(Address):
     sym_ul = create_property_funcs('teryt:sym_ul')
     simc = create_property_funcs('teryt:simc')
     source = create_property_funcs('source:addr')
+    id_ = create_property_funcs('ref:addr')
 
     def __getitem__(self, key):
         return self._soup[key]
@@ -68,6 +69,7 @@ class OsmAddress(Address):
             simc        = cache.get('teryt:simc', ''),
             source      = cache.get('source:addr', ''),
             location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
+            id_         = cache.get('ref:addr', ''),
             soup        = obj
         )
 
@@ -149,7 +151,7 @@ class OsmAddress(Address):
         return self.housenumber and set(self._soup['tags'].keys()).issubset(
                             {'addr:housenumber', 'addr:street', 'addr:place',
                             'addr:city', 'addr:postcode', 'addr:country', 'teryt:sym_ul',
-                            'teryt:simc', 'source', 'source:addr', 'fixme', 'addr:street:source'}
+                            'teryt:simc', 'source', 'source:addr', 'fixme', 'addr:street:source', 'ref:addr'}
         )
 
     def is_new(self):
@@ -172,7 +174,7 @@ class OsmAddress(Address):
             ret |= update(name)
         # update without changing ret status, so adding these fields will not trigger a change in OSM
         # but if there is something else added, this will get updated too
-        for name in ('sym_ul', 'simc', 'source'):
+        for name in ('sym_ul', 'simc', 'source', 'id_'):
             update(name)
         if entry.getFixme():
             self.addFixme(entry.getFixme())
@@ -528,6 +530,9 @@ class Merger(object):
     def _merge_one_address(self, building, addr):
         # as we merge only address nodes, do not pass anything else
         building['tags'].update(addr.get_tag_soup())
+        fixme = building['tags'].get('fixme', '')
+        fixme += addr.getFixme()
+        building['tags']['fixme'] = fixme
         self.osmdb.getbyid("%s:%s" % (building['type'], building['id']))[0].set_state('modify')
         self.set_state(addr, 'delete')
         self._updated_nodes.append(self.osmdb.getbyid("%s:%s" % (building['type'], building['id']))[0])

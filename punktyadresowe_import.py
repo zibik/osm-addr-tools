@@ -96,7 +96,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     __POSTCODE = re.compile('^[0-9]{2}-[0-9]{3}$')
     __NUMERIC = re.compile('^[0-9]*$')
 
-    def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location=''):
+    def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location='', id_=''):
         #super(Address, self).__init__(*args, **kwargs)
         self.housenumber = housenumber.replace(' ', '')
         if postcode and postcode != '00-000' and self.__POSTCODE.match(postcode):
@@ -119,6 +119,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         self.source = source
         self.location = location
         self._fixme = []
+        self.id_ = id_
         assert all(map(lambda x: isinstance(getattr(self, x, ''), str), ('housenumber', 'postcode', 'street', 'city', 'sym_ul', 'simc', 'source')))
         assert isinstance(self.location, dict)
         assert 'lon' in self.location
@@ -167,6 +168,8 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
 
     def similar_to(self, other):
         ret = True
+        if self.id_ and other.id_ and self.id_ == other.id_:
+            return True
         ret &= (other.housenumber.upper().replace(' ', '') == self.housenumber.upper().replace(' ', ''))
         if self.simc and other.simc and self.simc == other.simc:
             ret &= True
@@ -204,6 +207,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             'source:addr': self.source,
             'location': self.location,
             'fixme': ",".join(self._fixme),
+            'id': self.id_,
         }
 
     @staticmethod
@@ -401,7 +405,8 @@ class iMPA(AbstractImport):
                 str_id[:-1], # sym_ul
                 city_id[:-1], # simc
                 kv.get(str_normalize('Źródło danych'), ''),
-                {'lat': lat, 'lon': lon} # location
+                {'lat': lat, 'lon': lon}, # location
+                kv.get(str_normalize('idIIP'), ''),
             )
         except KeyError:
             self.__log.error(soup)
@@ -466,7 +471,8 @@ class GUGiK(AbstractImport):
                 addr_kv.get(str_normalize('TERYT_ULICY')),
                 addr_kv.get(str_normalize('TERYT_MIEJSCOWOSCI')),
                 'emuia.gugik.gov.pl',
-                {'lat': coords[1], 'lon': coords[0]}
+                {'lat': coords[1], 'lon': coords[0]},
+                addr_kv.get(str_normalize('IDENTYFIKATOR_PUNKTU'))
         )
         ret.status = addr_kv[str_normalize('STATUS')]
         ret.wazny_do = addr_kv.get(str_normalize('WAZNY_DO'))
