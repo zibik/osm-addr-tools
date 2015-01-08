@@ -65,7 +65,7 @@ class OsmAddress(Address):
             postcode    = cache.get('addr:postcode', ''),
             street      = cache.get('addr:street', ''),
             city        = cache.get('addr:place', '') if cache.get('addr:place') else cache.get('addr:city', ''),
-            sym_ul      = cache.get('teryt:symul', ''),
+            sym_ul      = cache.get('teryt:sym_ul', ''),
             simc        = cache.get('teryt:simc', ''),
             source      = cache.get('source:addr', ''),
             location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
