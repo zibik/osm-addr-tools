@@ -309,7 +309,7 @@ class iMPA(AbstractImport):
         self.wms = None
 
         if gmina:
-            self._initFromIMPA('http://%s.e-mapa.net' % (gmina,))
+            self._initFromIMPA(gmina)
 
         else:
             if not wms and not terc:
@@ -322,24 +322,42 @@ class iMPA(AbstractImport):
         if not self.wms:
             raise ValueError("No WMS address found")
 
-    def _initFromIMPA(self, gmina_url):
-        url = gmina_url + '/application/system/init.php'
+    def _initFromIMPA(self, gmina):
+        url = 'http://%s.e-mapa.net/application/system/init.php' % (gmina,)
         self.__log.info(url)
         data = urlopen(url).read().decode('utf-8')
         init_data = json.loads(data)
 
         self.setBboxFrom2180(init_data['spatialExtent'])
-        self.terc = init_data['teryt']
+        self.terc = init_data.get('teryt')
 
         address_layers = list(
                     filter(
-                        lambda x: x['title'] and x['title'].upper() == 'ADRESY I ULICE',
-                        init_data['map']['services']
+                        lambda x: x.get('title') and x['title'].upper() == 'ADRESY I ULICE',
+                        init_data.get('map', {}).get('services', [{},])
                     )
             )
         if len(address_layers) == 0:
             self.__log.warning('No information about address layer in init.php')
             self.__log.debug(data)
+            url = 'http://%s.punktyadresowe.pl' % (gmina,)
+            self.__log.info(url)
+            data = urlopen(url).read().decode('utf-8')
+            def extract(begin, end):
+                start_pos = data.rfind(begin)
+                end_pos = data.find(end, start_pos)
+                if start_pos < 0 or end_pos < 0:
+                    return None
+                return data[start_pos + len(begin):end_pos]
+            wms = extract("wmsUrl = '", "';")
+            terc = extract("var teryt_gminy = '", "';")
+            if wms and terc:
+                self.wms = wms
+                self.terc = terc
+                self.__log.info('setting wms to: %s and terc to %s', wms, terc)
+            else:
+                self.__log.warning('No information about address layer in %s', url)
+                self.__log.debug(data)
         else:
             self.wms = address_layers[0]['address']
 
