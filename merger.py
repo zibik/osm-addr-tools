@@ -199,7 +199,8 @@ class OsmAddress(Address):
 
         s = self._soup
         meta_kv = dict((k, str(v)) for (k, v) in s.items() if k in ('id', 'version', 'timestamp', 'changeset', 'uid', 'user'))
-        tags = dict((k,v.strip()) for (k,v) in s.get('tags', {}).items() if v.strip())
+        # do not export ref:addr until the discussion will come to conclusion
+        tags = dict((k,v.strip()) for (k,v) in s.get('tags', {}).items() if v.strip() and k != 'ref:addr')
 
         ret = False
         if self.housenumber:
