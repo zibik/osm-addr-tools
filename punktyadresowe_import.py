@@ -556,6 +556,8 @@ class GUGiK(AbstractImport):
                 )
             else:
                 raise ValueError('No data returned from GUGiK possibly to wrong scale. Check __MAX_BBOX_X, __MAX_BBOX_Y, HEIGHT and WIDTH')
+        # take latest version for each point (version is last element after dot in id_)
+        ret = [max(v, key=lambda z: z.id_) for  v in groupby(ret, lambda z: z.id_.rsplit('.', 1)[0]).values()]
         return ret
 
 class AddressEncoder(json.JSONEncoder):
