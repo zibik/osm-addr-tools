@@ -96,7 +96,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     __POSTCODE = re.compile('^[0-9]{2}-[0-9]{3}$')
     __NUMERIC = re.compile('^[0-9]*$')
 
-    def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location='', id_=''):
+    def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location='', id_='', last_change=''):
         #super(Address, self).__init__(*args, **kwargs)
         self.housenumber = housenumber.replace(' ', '')
         if postcode and postcode != '00-000' and self.__POSTCODE.match(postcode):
@@ -120,6 +120,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         self.location = location
         self._fixme = []
         self.id_ = id_
+        self.last_change = last_change
         assert all(map(lambda x: isinstance(getattr(self, x, ''), str), ('housenumber', 'postcode', 'street', 'city', 'sym_ul', 'simc', 'source')))
         assert isinstance(self.location, dict)
         assert 'lon' in self.location
@@ -147,8 +148,8 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         else:
             node.append(ret.new_tag('tag', k='addr:place', v=self.city))
 
-        node.append(ret.new_tag('tag', k='teryt:simc', v=self.simc))
-        node.append(ret.new_tag('tag', k='teryt:sym_ul', v=self.sym_ul))
+        node.append(ret.new_tag('tag', k='addr:city:simc', v=self.simc))
+        node.append(ret.new_tag('tag', k='addr:street:sym_ul', v=self.sym_ul))
         node.append(ret.new_tag('tag', k='source:addr', v=self.source))
         if self._fixme:
             node.append(ret.new_tag('tag', k='fixme', v=" ".join(self.getFixme())))
@@ -209,6 +210,17 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             'location': self.location,
             'fixme': ",".join(self._fixme),
             'id': self.id_,
+            'last_change': self.last_change,
+        }
+    
+    def to_geoJSON(self):
+        return {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [self.location['lon'], self.location['lat']]
+            },
+            "properties": self.to_JSON()
         }
 
     @staticmethod
