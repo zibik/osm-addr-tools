@@ -48,8 +48,8 @@ class OsmAddress(Address):
     postcode = create_property_funcs('addr:postcode')
     street = create_property_funcs('addr:street')
     city = create_property_funcs('addr:city')
-    sym_ul = create_property_funcs('teryt:sym_ul')
-    simc = create_property_funcs('teryt:simc')
+    sym_ul = create_property_funcs('addr:street:sym_ul')
+    simc = create_property_funcs('addr:city:simc')
     source = create_property_funcs('source:addr')
     id_ = create_property_funcs('ref:addr')
 
