@@ -641,7 +641,7 @@ def mapcity(cityname, simc):
             __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret, simc))
         return ret
     except KeyError:
-        return cityname
+        return cityname.replace(' - ', '-')
 
 def main():
       logging.basicConfig(level=10)
