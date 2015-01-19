@@ -149,8 +149,8 @@ class OsmAddress(Address):
         if self.objtype != 'node':
             return False
         return self.housenumber and set(self._soup['tags'].keys()).issubset(
-                            {'addr:housenumber', 'addr:street', 'addr:place',
-                            'addr:city', 'addr:postcode', 'addr:country', 'teryt:sym_ul',
+                            {'addr:housenumber', 'addr:street', 'addr:street:sym_ul', 'addr:place',
+                            'addr:city', 'addr:city:simc', 'addr:postcode', 'addr:country', 'teryt:sym_ul',
                             'teryt:simc', 'source', 'source:addr', 'fixme', 'addr:street:source', 'ref:addr'}
         )
 
