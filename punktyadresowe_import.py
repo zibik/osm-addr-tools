@@ -139,20 +139,23 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     def asOsmSoup(self, node_id):
         ret = BeautifulSoup("", "xml")
         node = ret.new_tag('node', id=node_id, action='modify', visible='true', lat=self.location['lat'], lon=self.location['lon'])
-        node.append(ret.new_tag('tag', k='addr:housenumber', v=self.housenumber))
-        if self.postcode:
-            node.append(ret.new_tag('tag', k='addr:postcode', v=self.postcode))
-        if self.street:
-            node.append(ret.new_tag('tag', k='addr:street', v=self.street))
-            node.append(ret.new_tag('tag', k='addr:city', v=self.city))
-        else:
-            node.append(ret.new_tag('tag', k='addr:place', v=self.city))
+        def addTag(key, value):
+            if value:
+                node.append(ret.new_tag('tag', k=key, v=value))
 
-        node.append(ret.new_tag('tag', k='addr:city:simc', v=self.simc))
-        node.append(ret.new_tag('tag', k='addr:street:sym_ul', v=self.sym_ul))
-        node.append(ret.new_tag('tag', k='source:addr', v=self.source))
+        addTag('addr:housenumber', self.housenumber)
+        addTag('addr:postcode', self.postcode)
+        if self.street:
+            addTag('addr:street', self.street)
+            addTag('addr:city', self.city)
+        else:
+            addTag('addr:place', self.city)
+
+        addTag('addr:city:simc', self.simc)
+        addTag('addr:street:sym_ul', self.sym_ul)
+        addTag('source:addr', self.source)
         if self._fixme:
-            node.append(ret.new_tag('tag', k='fixme', v=" ".join(self.getFixme())))
+            addTag('fixme', " ".join(self.getFixme()))
         return node
 
     def osOsmXML(self, node_id):
