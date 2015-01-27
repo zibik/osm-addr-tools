@@ -441,6 +441,7 @@ addr_map = {
  'Śliwińskiego Józefa': 'Józefa Śliwińskiego',
  'Śnieżka Adama': 'Adama Śnieżka',
  'Św. Ducha': 'Świętego Ducha',
+ 'Św. Floriana': 'Świętego Floriana',
  'Św. Huberta': 'Świętego Huberta',
  'Św. Jana': 'Świętego Jana',
  'Św. Rozalii': 'Świętej Rozalii',
