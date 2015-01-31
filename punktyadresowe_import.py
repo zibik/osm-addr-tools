@@ -33,6 +33,7 @@ import argparse
 from bs4 import BeautifulSoup
 from collections import namedtuple
 from functools import partial
+import itertools
 import json
 import logging
 import math
@@ -134,7 +135,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         return self._fixme
 
     def getFixme(self):
-        return ",".join(self._fixme)
+        return ", ".join(self._fixme)
 
     def asOsmSoup(self, node_id):
         ret = BeautifulSoup("", "xml")
@@ -155,7 +156,7 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         addTag('addr:street:sym_ul', self.sym_ul)
         addTag('source:addr', self.source)
         if self._fixme:
-            addTag('fixme', " ".join(self.getFixme()))
+            addTag('fixme', self.getFixme())
         return node
 
     def osOsmXML(self, node_id):
@@ -537,23 +538,20 @@ class GUGiK(AbstractImport):
             lambda x: (x.city, x.housenumber.replace(' ', '').upper(), x.street)
         )
 
+        # if addresses do not fit within circle of 100m diameter, then mark all point as "fixme=Duplicate addresses (distance over 100m)"
+        # keep in mind, that super(GUGiK, self)._checkDuplicatesInImport marked all duplicates with fixmes
+
         for (addr, occurances) in filter(lambda x: len(x[1]) > 1, addr_index.items()):
-            for n in range(len(occurances)-1):
-                addr1 = occurances[n]
-                addr2 = occurances[n+1]
-                if distance(addr1.center, addr2.center) < 10:
-                    # addresses are closer than 10m
-                    # remove first, move second to average of these two
-                    self.__log.info("Merging duplicate addresses: %s, position: %s and %s" % (addr1, addr1.getLatLon(), addr2.getLatLon()))
-                    data.remove(addr1)
-                    l1 = addr1.getLatLon()
-                    l2 = addr2.getLatLon()
-                    addr2.location = {
-                        'lat': (l1[0]+l2[0])/2,
-                        'lon': (l1[1]+l2[1])/2
-                    }
-
-
+            # check if any pair is more than 100m away from each other
+            if any(
+                    map(
+                        lambda x: distance(x[0].center, x[1].center) > 100,
+                        itertools.combinations(occurances, 2)
+                    )
+                ):
+                self.__log.warning("Address points for %s doesn't fit into 100m circle. Points count: %d", occurances[0], len(occurances))
+                for addr in occurances:
+                    addr.addFixme('(distance over 100m, points: %d)' % (len(occurances),))
 
     def fetchTiles(self):
         bbox = self.getBbox2180()
