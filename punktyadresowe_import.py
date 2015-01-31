@@ -39,6 +39,7 @@ import logging
 import math
 import pyproj
 import re
+import uuid
 from shapely.geometry import Point
 
 from osmdb import OsmDb, distance
@@ -293,10 +294,19 @@ out bb;
         addr_index = groupby(data, lambda x: (x.city, x.housenumber.replace(' ', '').upper(), x.street))
 
         for (addr, occurances) in filter(lambda x: len(x[1]) > 1, addr_index.items()):
-            self.__log.warning("Duplicate addresses in import: %s", addr)
+            self.__log.warning("Duplicate addresses in import: %s", occurances[0])
+            uid = uuid.uuid4()
             for i in occurances:
-                i.addFixme('Duplicate address in import')
-
+                i.addFixme('Duplicate address in import (id: %s)' % (uid,))
+            if any(
+                    map(
+                        lambda x: distance(x[0].center, x[1].center) > 100,
+                        itertools.combinations(occurances, 2)
+                    )
+                ):
+                self.__log.warning("Address points doesn't fit into 100m circle. Points count: %d", len(occurances))
+                for addr in occurances:
+                    addr.addFixme('(distance over 100m, points: %d)' % (len(occurances),))
 
     def _checkMixedScheme(self, data):
         dups = groupby(data, lambda x: x.simc, lambda x: bool(x.street))
@@ -530,28 +540,6 @@ class GUGiK(AbstractImport):
             # do not report anything about this, this is normal
             return False
         return True
-
-    def _checkDuplicatesInImport(self, data):
-        super(GUGiK, self)._checkDuplicatesInImport(data)
-        addr_index = groupby(
-            filter(lambda x: 'Duplicate address in import' in x.fixmes, data),
-            lambda x: (x.city, x.housenumber.replace(' ', '').upper(), x.street)
-        )
-
-        # if addresses do not fit within circle of 100m diameter, then mark all point as "fixme=Duplicate addresses (distance over 100m)"
-        # keep in mind, that super(GUGiK, self)._checkDuplicatesInImport marked all duplicates with fixmes
-
-        for (addr, occurances) in filter(lambda x: len(x[1]) > 1, addr_index.items()):
-            # check if any pair is more than 100m away from each other
-            if any(
-                    map(
-                        lambda x: distance(x[0].center, x[1].center) > 100,
-                        itertools.combinations(occurances, 2)
-                    )
-                ):
-                self.__log.warning("Address points for %s doesn't fit into 100m circle. Points count: %d", occurances[0], len(occurances))
-                for addr in occurances:
-                    addr.addFixme('(distance over 100m, points: %d)' % (len(occurances),))
 
     def fetchTiles(self):
         bbox = self.getBbox2180()
