@@ -209,8 +209,8 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             'addr:postcode': self.postcode,
             'addr:street': self.street,
             'addr:city': self.city,
-            'teryt:sym_ul': self.sym_ul,
-            'teryt:simc': self.simc,
+            'addr:street:sym_ul': self.sym_ul,
+            'addr:city:simc': self.simc,
             'source:addr': self.source,
             'location': self.location,
             'fixme': ",".join(self._fixme),
@@ -235,13 +235,28 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
             postcode    = obj.get('addr:postcode'),
             street      = obj.get('addr:street'),
             city        = obj.get('addr:city'),
-            sym_ul      = obj.get('teryt:sym_ul'),
-            simc        = obj.get('teryt:simc'),
+            sym_ul      = obj.get('addr:street:sym_ul'),
+            simc        = obj.get('addr:city:simc'),
             source      = obj['source:addr'],
-            location    = obj['location'])
+            location    = obj['location'],
+            id_         = obj['id'],
+        )
         if obj.get('fixme'):
             ret.addFixme(obj['fixme'])
         return ret
+
+    @staticmethod
+    def from_osmXML(elem):
+        tags = dict(
+            (x.get('k'), x.get('v')) for x in elem if x.tag == 'tag'
+        )
+        if 'addr:place' in tags and 'addr:city' not in tags:
+            tags['addr:city'] = tags['addr:place']
+        tags['location'] = {
+            'lon': elem.get('lon'),
+            'lat': elem.get('lat')
+        }
+        return Address.from_JSON(tags)
 
 class AbstractImport(object):
     __log = logging.getLogger(__name__).getChild('AbstractImport')

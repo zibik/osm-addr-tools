@@ -65,8 +65,8 @@ class OsmAddress(Address):
             postcode    = cache.get('addr:postcode', ''),
             street      = cache.get('addr:street', ''),
             city        = cache.get('addr:place', '') if cache.get('addr:place') else cache.get('addr:city', ''),
-            sym_ul      = cache.get('teryt:sym_ul', ''),
-            simc        = cache.get('teryt:simc', ''),
+            sym_ul      = cache.get('addr:street:sym_ul', ''),
+            simc        = cache.get('addr:city:simc', ''),
             source      = cache.get('source:addr', ''),
             location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
             id_         = cache.get('ref:addr', ''),
@@ -247,7 +247,8 @@ class Merger(object):
         self.pre_func = []
         self.post_func = []
         self._soup_visible = []
-        self._import_area_shape = get_boundary_shape(terc)
+        if terc:
+            self._import_area_shape = get_boundary_shape(terc)
         self._state_changes = []
         self._parallel_process_func = parallel_process_func
 
@@ -552,13 +553,21 @@ class Merger(object):
             if len(nodes) > 0:
                 self._mark_soup_visible(self.osmdb.getbyid(_id)[0])
 
-            if len(nodes) == 1:
-                if building['tags'].get('addr:housenumber'):
+            # if there is only one candidate, or all candidates are similiar addresses
+            if len(nodes) == 1 or all(map(
+                lambda x: x[0].similar_to(x[1]),
+                itertools.combinations(nodes, 2)
+                )):
+                if building['tags'].get('addr:housenumber') and not nodes[0].similar_to(OsmAddress.from_soup(building)):
+                    # if building has different address, than we want to put
                     self.__log.info("Skipping merging address: %s, as building already has an address: %s.", str(nodes[0].entry), OsmAddress.from_soup(building))
-                    self._mark_soup_visible(nodes[0])
+                    for node in nodes:
+                        self._mark_soup_visible(node)
                 else:
+                    # if building has similar address, just merge
                     self.__log.debug("Merging address %s with building %s", str(nodes[0].entry), _id)
-                    self._merge_one_address(building, nodes[0])
+                    for node in nodes:
+                        self._merge_one_address(building, node)
 
             if len(nodes) > 1:
                 for node in nodes:
@@ -586,7 +595,7 @@ class Merger(object):
                    )
                 if candidates_within:
                     c = candidates_within[0]
-                    if c.housenumber:
+                    if c.housenumber and not addr.similar_to(c):
                         self.set_state(c, 'visible')
                         self.set_state(addr, 'visible')
                     else:
