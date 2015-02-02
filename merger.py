@@ -578,7 +578,7 @@ class Merger(object):
         for node in filter(lambda x: x['type'] == 'node' and x.get('tags', {}).get('addr:housenumber'), self.asis['elements']):
             addr = self.osmdb.getbyid("%s:%s" % (node['type'], node['id']))[0]
             self.__log.debug("Looking for candidates for: %s", str(addr.entry))
-            if addr.only_address_node() and addr.state != 'delete' and self._import_area_shape.contains(addr.center):
+            if addr.only_address_node() and addr.state != 'delete' and (not self._import_area_shape or self._import_area_shape.contains(addr.center)):
                 candidates = list(self.osmdb.nearest(addr.center, num_results=10))
                 candidates_within = list(
                     filter(

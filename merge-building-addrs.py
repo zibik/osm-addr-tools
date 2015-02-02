@@ -14,9 +14,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="""Merge osm file with address nodes with buildings in specified area as terc code"""
     )
-    parser.add_argument('input', help='File with address nodes to merge')
+    parser.add_argument('--addr', help='File with address nodes to merge', required=True)
+    parser.add_argument('--building', help='File with buildings to merge', required=True)
     parser.add_argument('--output', help='output file with merged data (default: result.osm)')
-    parser.add_argument('--terc', help='Teryt TERC code for area processed', required=True)
+    parser.add_argument('--terc', help='Teryt TERC code for area processed')
     parser.add_argument('--log-level', help='Set logging level (debug=10, info=20, warning=30, error=40, critical=50), default: 20', dest='log_level', default=20, type=int)
 
     args = parser.parse_args()
@@ -34,13 +35,9 @@ def main():
         output = open('.'.join(parts), "xb")
         print("Output filename: %s" % ('.'.join(parts),))
 
-    data = [OsmAddress.from_soup(x) for x in osm_to_json(lxml.etree.parse(open(args.input)))['elements']]
+    data = [OsmAddress.from_soup(x) for x in osm_to_json(lxml.etree.parse(open(args.addr)))['elements']]
 
-    s = min(map(lambda x: x.center.y, data))
-    w = min(map(lambda x: x.center.x, data))
-    n = max(map(lambda x: x.center.y, data))
-    e = max(map(lambda x: x.center.x, data))
-    addr = getAddresses(map(str,(s, w, n, e)))
+    addr = osm_to_json(open(args.building))
 
     m = Merger(data, addr, args.terc)
     for i in data:
