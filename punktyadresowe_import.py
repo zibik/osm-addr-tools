@@ -44,7 +44,7 @@ from shapely.geometry import Point
 
 from osmdb import OsmDb, distance
 import overpass
-from mapping import mapstreet, mapcity
+from mapping import mapstreet, mapcity, mappostcode
 from utils import parallel_execution, groupby
 import lxml.html
 import lxml.etree
@@ -101,23 +101,27 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location='', id_='', last_change=''):
         #super(Address, self).__init__(*args, **kwargs)
         self.housenumber = housenumber.replace(' ', '')
+        if simc and self.__NUMERIC.match(simc):
+            self.simc = simc
+        else:
+            self.simc = ''
+
         if postcode and postcode != '00-000' and self.__POSTCODE.match(postcode):
             self.postcode = postcode
         else:
-            self.postcode = ''
+            self.postcode = mappostcode('', simc)
+
         if street:
             self.street = mapstreet(re.sub(' +', ' ', street), sym_ul)
         else:
             self.street = ''
         self.city = mapcity(city, simc)
+
         if sym_ul and self.__NUMERIC.match(sym_ul):
             self.sym_ul = sym_ul
         else:
             self.sym_ul = ''
-        if simc and self.__NUMERIC.match(simc):
-            self.simc = simc
-        else:
-            self.simc = ''
+
         self.source = source
         self.location = location
         self._fixme = []

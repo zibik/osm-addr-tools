@@ -581,22 +581,25 @@ import utils
 __DB_OSM_TERYT_SYMUL = os.path.join(tempfile.gettempdir(), 'osm_teryt_symul_v2.db')
 __DB_OSM_TERYT_SIMC = os.path.join(tempfile.gettempdir(), 'osm_teryt_simc_v2.db')
 __DB_TERYT_ULIC = os.path.join(tempfile.gettempdir(), 'teryt_ulic_v3.db')
+__DB_OSM_SIMC_POSTCODE = os.path.join(tempfile.gettempdir(), 'osm_teryt_simc_postcode_v1.db')
 __mapping_symul = {}
 __mapping_simc = {}
 __teryt_ulic = {}
+__mapping_simc_postcode = {}
 
 import threading
 __init_lock = threading.Lock()
 __is_initialized = False
 
 def __init():
-    global __is_initialized, __init_lock, __mapping_symul, __mapping_simc, __teryt_ulic
+    global __is_initialized, __init_lock, __mapping_symul, __mapping_simc, __teryt_ulic, __mapping_simc_postcode
     if not __is_initialized:
         with __init_lock:
             if not __is_initialized:
                 __mapping_symul = storedDict(lambda: getDict('teryt:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL)
                 __mapping_simc = storedDict(lambda: getDict('teryt:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC)
                 __teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
+                __mapping_simc_postcode = storedDict(lambda: getDict('teryt:simc', 'addr:postcode', ['place',]), __DB_OSM_SIMC_POSTCODE)
                 __is_initialized = True
 
 @functools.lru_cache(maxsize=None)
@@ -645,6 +648,23 @@ def mapcity(cityname, simc):
         return ret
     except KeyError:
         return cityname.replace(' - ', '-')
+
+@functools.lru_cache(maxsize=None)
+def mappostcode(postcode, simc):
+    __init()
+    if postcode:
+        return postcode
+    try:
+        ret = __mapping_simc_postcode[simc]
+        if len(ret) > 1:
+            __log.info("Inconsistent mapping for teryt:simc = %s to postcode. OSM values: %s", simc, ", ".join(ret))
+            return postcode
+        ret = next(iter(ret.keys())) # take first (and the only one) key
+        if ret != postcode:
+            __log.info("Adding postcode %s for teryt:simc=%s", ret, simc)
+        return ret
+    except KeyError:
+        return postcode
 
 def main():
       logging.basicConfig(level=10)
