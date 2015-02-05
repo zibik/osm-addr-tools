@@ -627,7 +627,7 @@ def mapstreet(strname, symul):
             if len(ret) > 1:
                 __log.info("Inconsitent mapping for teryt:sym_ul = %s. Original value: %s, TERYT: %s, OSM values: %s. Leaving original value.", symul, strname, teryt_entry.nazwa if teryt_entry else 'N/A',  ", ".join(ret))
                 return strname
-            ret = checkAndAddCecha(ret[0])
+            ret = checkAndAddCecha(next(iter(ret.keys()))) # check and add for first and only key
             if ret != strname:
                 __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa if teryt_entry else 'N/A', symul))
             return ret
@@ -642,7 +642,7 @@ def mapcity(cityname, simc):
         if len(ret) > 1:
             __log.info("Inconsitent mapping for teryt:simc = %s. Original value: %s, OSM values: %s. Leaving original value.", simc, cityname, ", ".join(ret))
             return cityname
-        ret = ret[0]
+        ret = next(iter(ret.keys())) # take first (and the only one) key
         if ret != cityname:
             __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret, simc))
         return ret
