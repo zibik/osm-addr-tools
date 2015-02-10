@@ -194,8 +194,15 @@ class OsmAddress(Address):
             n = tags.get(key)
             if n == value.strip():
                 return False
-            tags[key] = value.strip()
-            return True
+            if value.strip():
+                tags[key] = value.strip()
+                return True
+            else:
+                if n:
+                    del tags[key]
+                    return True
+                else:
+                    return False
 
         s = self._soup
         meta_kv = dict((k, str(v)) for (k, v) in s.items() if k in ('id', 'version', 'timestamp', 'changeset', 'uid', 'user'))
