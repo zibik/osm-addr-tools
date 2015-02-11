@@ -1,8 +1,13 @@
 from flask import Flask, make_response as _make_response
+import io
+import logging
+import json
+
 from merger import Merger, getAddresses
 from punktyadresowe_import import iMPA
-import utils
 import logging
+import overpass
+import utils
 
 app = Flask(__name__)
 
@@ -39,6 +44,17 @@ def fullImport(name):
     m = get_IMPA_Merger(name)
     ret = m.get_full_result()
     return make_response(ret, 200)
+
+
+@app.route("/osm/adresy/merge-addr/<terc>.osm", methods=["GET", ])
+def merge_addr(terc):
+    logIO = io.StringIO()
+    logging.basicConfig(level=10, handlers=[logging.StreamHandler(logIO),])
+    addr = json.loads(overpass.getAddresses(terc))
+    m = Merger([], addr, terc)
+    m._create_index()
+    m.merge_addresses()
+    return make_response(m.get_incremental_result(logIO), 200)
 
 if __name__ == '__main__':
     ADMINS = ['logi-osm@vink.pl']

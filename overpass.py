@@ -47,7 +47,7 @@ __query_terc = """
 
 # don't know why Overpass API converter leaves out geometry="bounds" (bb) after conversion
 # remember to add it (bb before qt) by hand 
-__overpass_ql_terc = """[out:xml][timeout:600];area["boundary"="administrative"]["admin_level"="7"]["teryt:terc"~"%s"]["type"="boundary"]->.boundryarea;(node(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["building"];relation(area.boundryarea)["addr:housenumber"];relation(area.boundryarea)["building"];);out meta bb qt;>;out meta qt;"""
+__overpass_ql_terc = """[out:json][timeout:600];area["boundary"="administrative"]["admin_level"="7"]["teryt:terc"~"%s"]["type"="boundary"]->.boundryarea;(node(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["addr:housenumber"];way(area.boundryarea)["building"];relation(area.boundryarea)["addr:housenumber"];relation(area.boundryarea)["building"];);out meta bb qt;>;out meta bb qt;"""
 
 def getAddresses(terc):
     return query(__overpass_ql_terc % (terc,))
