@@ -596,8 +596,8 @@ def __init():
     if not __is_initialized:
         with __init_lock:
             if not __is_initialized:
-                __mapping_symul = storedDict(lambda: getDict('teryt:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL)
-                __mapping_simc = storedDict(lambda: getDict('teryt:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC)
+                __mapping_symul = storedDict(lambda: getDict('addr:street:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL)
+                __mapping_simc = storedDict(lambda: getDict('addr:city:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC)
                 __teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
                 __mapping_simc_postcode = storedDict(lambda: getDict('teryt:simc', 'addr:postcode', ['place',]), __DB_OSM_SIMC_POSTCODE)
                 __is_initialized = True
@@ -613,23 +613,23 @@ def mapstreet(strname, symul):
                 street = "%s %s" % (__CECHA_MAPPING.get(teryt_entry.cecha, '') , strname[len(teryt_entry.cecha):].strip())
             if not street.upper().startswith(teryt_entry.cecha.upper()) and \
                 not street.upper().startswith(__CECHA_MAPPING.get(teryt_entry.cecha, '').upper()):
-                __log.debug("Adding TERYT.CECHA=%s to street=%s (teryt:sym_ul=%s)" % (__CECHA_MAPPING.get(teryt_entry.cecha, ''), street, symul))
+                __log.debug("Adding TERYT.CECHA=%s to street=%s (addr:street:sym_ul=%s)" % (__CECHA_MAPPING.get(teryt_entry.cecha, ''), street, symul))
                 return "%s %s" % (__CECHA_MAPPING.get(teryt_entry.cecha, ''), street)
         return street
 
     try:
         ret = checkAndAddCecha(addr_map[strname])
-        __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa if teryt_entry else 'N/A', symul))
+        __log.info("mapping street %s -> %s, TERYT: %s (addr:street:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa if teryt_entry else 'N/A', symul))
         return ret
     except KeyError:
         try:
             ret = __mapping_symul[symul]
             if len(ret) > 1:
-                __log.info("Inconsitent mapping for teryt:sym_ul = %s. Original value: %s, TERYT: %s, OSM values: %s. Leaving original value.", symul, strname, teryt_entry.nazwa if teryt_entry else 'N/A',  ", ".join(ret))
+                __log.info("Inconsitent mapping for addr:street:sym_ul = %s. Original value: %s, TERYT: %s, OSM values: %s. Leaving original value.", symul, strname, teryt_entry.nazwa if teryt_entry else 'N/A',  ", ".join(ret))
                 return strname
             ret = checkAndAddCecha(next(iter(ret.keys()))) # check and add for first and only key
             if ret != strname:
-                __log.info("mapping street %s -> %s, TERYT: %s (teryt:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa if teryt_entry else 'N/A', symul))
+                __log.info("mapping street %s -> %s, TERYT: %s (addr:street:sym_ul=%s) " % (strname, ret, teryt_entry.nazwa if teryt_entry else 'N/A', symul))
             return ret
         except KeyError:
             return checkAndAddCecha(strname)
@@ -640,11 +640,11 @@ def mapcity(cityname, simc):
     try:
         ret = __mapping_simc[simc]
         if len(ret) > 1:
-            __log.info("Inconsitent mapping for teryt:simc = %s. Original value: %s, OSM values: %s. Leaving original value.", simc, cityname, ", ".join(ret))
+            __log.info("Inconsitent mapping for addr:city:simc = %s. Original value: %s, OSM values: %s. Leaving original value.", simc, cityname, ", ".join(ret))
             return cityname
         ret = next(iter(ret.keys())) # take first (and the only one) key
         if ret != cityname:
-            __log.info("mapping city %s -> %s (teryt:simc=%s)" % (cityname, ret, simc))
+            __log.info("mapping city %s -> %s (addr:city:simc=%s)" % (cityname, ret, simc))
         return ret
     except KeyError:
         return cityname.replace(' - ', '-')
