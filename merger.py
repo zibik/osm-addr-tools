@@ -37,6 +37,8 @@ def create_property_funcs(field):
     return property(getx, setx, delx, '%s property' % (field,))
 
 class OsmAddress(Address):
+    __log = logging.getLogger(__name__).getChild('OsmAddress')
+
     def __init__(self, soup, *args, **kwargs):
         self._soup = soup
         if 'tags' not in self._soup:
@@ -166,11 +168,12 @@ class OsmAddress(Address):
             new = getattr(entry, name)
             if new and old != new:
                 setattr(self, name, new)
+                self.__log.debug("Updating %s from %s to %s", name, old, new)
                 return True
             return False
 
         ret = False
-        for name in ('street', 'city', 'housenumber'):
+        for name in ('street', 'city', 'housenumber', 'postcode'):
             ret |= update(name)
         # update without changing ret status, so adding these fields will not trigger a change in OSM
         # but if there is something else added, this will get updated too
@@ -207,7 +210,7 @@ class OsmAddress(Address):
         s = self._soup
         meta_kv = dict((k, str(v)) for (k, v) in s.items() if k in ('id', 'version', 'timestamp', 'changeset', 'uid', 'user'))
         # do not export ref:addr until the discussion will come to conclusion
-        tags = dict((k,v.strip()) for (k,v) in s.get('tags', {}).items() if v.strip() and k != 'ref:addr')
+        tags = dict((k,v.strip()) for (k,v) in s.get('tags', {}).items() if v.strip() and k != 'ref:addr' and k != 'addr:ref')
 
         ret = False
         if self.housenumber:
@@ -219,7 +222,7 @@ class OsmAddress(Address):
                 ret |= _removeTag(tags, 'addr:city')
             if self.getFixme():
                 ret |= _setTagVal(tags, 'fixme', self.getFixme())
-
+            ret |= _setTagVal(tags, 'addr:postcode', self.postcode)
         if ret or self.state == 'modify':
             if bool(tags.get('source')) and (tags['source'] == self.source or 'EMUIA' in tags['source'].upper()):
                 _removeTag(tags, 'source')
@@ -425,6 +428,7 @@ class Merger(object):
         return True
 
     def _update_node(self, node, entry):
+        self.__log.debug("Cheking if there is something to update for node %s, address: %s", node.osmid, node)
         if node.updateFrom(entry):
             self.__log.debug("Updating node %s using %s", node.osmid, entry)
             self._updated_nodes.append(node)

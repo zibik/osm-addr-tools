@@ -99,8 +99,8 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
     __NUMERIC = re.compile('^[0-9]*$')
 
     def __init__(self, housenumber='', postcode='', street='', city='', sym_ul='', simc='', source='', location='', id_='', last_change=''):
-        #super(Address, self).__init__(*args, **kwargs)
-        self.housenumber = housenumber.replace(' ', '')
+        self.housenumber = housenumber
+        
         if simc and self.__NUMERIC.match(simc):
             self.simc = simc
         else:
@@ -109,13 +109,14 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         if postcode and postcode != '00-000' and self.__POSTCODE.match(postcode):
             self.postcode = postcode
         else:
-            self.postcode = mappostcode('', simc)
+            self.postcode = ''
 
         if street:
-            self.street = mapstreet(re.sub(' +', ' ', street), sym_ul)
+            self.street = street
         else:
             self.street = ''
-        self.city = mapcity(city, simc)
+
+        self.city = city
 
         if sym_ul and self.__NUMERIC.match(sym_ul):
             self.sym_ul = sym_ul
@@ -131,6 +132,16 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         assert isinstance(self.location, dict)
         assert 'lon' in self.location
         assert 'lat' in self.location
+
+    @staticmethod
+    def mappedAddress(*args, **kwargs):
+        ret = Address(*args, **kwargs)
+        ret.housenumber = ret.housenumber.replace(' ', '')
+        ret.postcode = mappostcode('', ret.simc)
+        if ret.street:
+            ret.street = mapstreet(re.sub(' +', ' ', ret.street), ret.sym_ul)
+        ret.city = mapcity(ret.city, ret.simc)
+        return ret
 
     def addFixme(self, value):
         self._fixme.append(value)
@@ -461,7 +472,7 @@ class iMPA(AbstractImport):
             if float(lon) < 14 or float(lon) > 25 or float(lat) < 49 or float(lat) > 56:
                 self.__log.warning("Point out of Polish borders: (%s, %s), %s, %s, %s", lat, lon, city_name, str_name, kv[str_normalize('Numer')])
 
-            return Address(
+            return Address.mappedAddress(
                 kv[str_normalize('Numer')],
                 kv[str_normalize('Kod pocztowy')].strip(),
                 str_name.strip(),
@@ -527,7 +538,7 @@ class GUGiK(AbstractImport):
         )
 
         coords = soup.find('{http://www.opengis.net/kml/2.2}Point').find('{http://www.opengis.net/kml/2.2}coordinates').text.split(',')
-        ret = Address(
+        ret = Address.mappedAddress(
                 addr_kv[str_normalize('NUMER_PORZADKOWY')],
                 addr_kv.get(str_normalize('KOD_POCZTOWY')),
                 addr_kv.get(str_normalize('NAZWA_ULICY')),
