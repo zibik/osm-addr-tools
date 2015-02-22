@@ -565,7 +565,7 @@ def storedDict(fetcher, filename):
         data = {
             'time': 0
         }
-    if data['time'] < time.time() - 7*24*60*60:
+    if data['time'] < time.time() - 21*24*60*60:
         new = fetcher()
         data['dct'] = new
         data['time'] = time.time()
