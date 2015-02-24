@@ -168,7 +168,8 @@ class OsmAddress(Address):
             new = getattr(entry, name)
             if new and old != new:
                 setattr(self, name, new)
-                self.__log.debug("Updating %s from %s to %s", name, old, new)
+                if old:
+                    self.__log.debug("Updating %s from %s to %s", name, old, new)
                 return True
             return False
 
@@ -299,6 +300,8 @@ class Merger(object):
                 # update street name based on OSM data
                 entry.addFixme('Street name in import source: %s' % (entry.street,))
                 entry.street = node.street
+                self.set_state(node, 'visible') # make this *always* visible, to verify, if OSM value is correct. Hope that entry will eventually get merged with node
+                # and fixme will get updated
             if node and node.street == entry.street and node.city == entry.city and node.housenumber != entry.housenumber and \
                 ((node.objtype == 'node' and how_far < 5.0) or (node.objtype == 'way' and (node.contains(entry.center) or how_far < 10.0))):
                 # there is only difference in housenumber, that is similiar
@@ -428,7 +431,7 @@ class Merger(object):
         return True
 
     def _update_node(self, node, entry):
-        self.__log.debug("Cheking if there is something to update for node %s, address: %s", node.osmid, node)
+        self.__log.debug("Cheking if there is something to update for node %s, address: %s", node.osmid, node.entry)
         if node.updateFrom(entry):
             self.__log.debug("Updating node %s using %s", node.osmid, entry)
             self._updated_nodes.append(node)
