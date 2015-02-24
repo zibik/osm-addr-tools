@@ -449,7 +449,7 @@ addr_map = {
  'Marcina św.': 'Świętego Marcina',
  'Św. Rozalii': 'Świętej Rozalii',
  'Św. Wojciecha': 'Świętego Wojciecha',
- 'Świerczewskiego': 'Generała Karola Świerczewskiego',
+ 'Świerczewskiego': 'Karola Świerczewskiego',
  'Świerczewskiego K. gen.': 'Generała Karola Świerczewskiego',
  'Świerczewskiego K.gen.': 'Generała Karola Świerczewskiego',
  'Żebrowskiego Michała': 'Michała Żebrowskiego',
