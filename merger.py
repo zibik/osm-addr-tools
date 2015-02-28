@@ -306,7 +306,7 @@ class Merger(object):
                 ((node.objtype == 'node' and how_far < 5.0) or (node.objtype == 'way' and (node.contains(entry.center) or how_far < 10.0))):
                 # there is only difference in housenumber, that is similiar
                 self.__log.info("Updating housenumber from %s to %s", node.housenumber, entry.housenumber)
-                entry.addFixme('House number in import source: %s' % (entry.housenumber,))
+                entry.addFixme('House number in OSM: %s' % (node.housenumber,))
                 self.set_state(node, 'visible') # make this *always* visible, to verify, if OSM value is correct. Hope that entry will eventually get merged with node
                 node.housenumber = entry.housenumber
         except StopIteration: pass
