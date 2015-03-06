@@ -682,9 +682,9 @@ def get_boundary_shape(terc):
 [timeout:600];
 relation
     ["teryt:terc"~"%s"];
-out bb;
+out meta bb qt;
 >;
-out bb;
+out meta bb qt;
 """ % (terc,)
     soup = json.loads(overpass.query(query))
     osmdb = OsmDb(soup)
