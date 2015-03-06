@@ -23,6 +23,7 @@ addr_map = {
  'Al. Wodniaków': 'aleja Wodniaków',
  'Andersa Władysława': 'Władysława Andersa',
  'Gen. Władysława Andersa': 'Generała Władysława Andersa',
+ 'Gen. Jerzego Ziętka': 'Generała Jerzego Ziętka',
  'Anny Św.': 'Świętej Anny',
  'Arciszewskiego Krzysztofa': 'Krzysztofa  Arciszewskiego',
  'Asnyka A.': 'Adama Asnyka',
