@@ -205,6 +205,7 @@ addr_map = {
  'Limanowskiego': 'Bolesława Limanowskiego',
  'Limanowskiego B.': 'Bolesława Limanowskiego',
  'Limanowskiego Bolesława': 'Bolesława Limanowskiego',
+ 'Łokietka': 'Władysława Łokietka',
  'M. Konopnickiej': 'Marii Konopnickiej',
  'Maciejewicza Konstantego': 'Konstantego Maciejewicza',
  'Makowskiego Tadeusza': 'Tadeusza Makowskiego',
