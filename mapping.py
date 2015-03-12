@@ -231,6 +231,7 @@ addr_map = {
  'Miłosza C.': 'Czesława Miłosza',
  'Miłosza Cz.': 'Czesława Miłosza',
  'Mikołaja Św.': 'Świętego Mikołaja',
+ 'mjr. Sucharskiego': 'Majora Henryka Sucharskiego',
  'Modrzejewskiej Heleny': 'Heleny Modrzejewskiej',
  'Modrzewskiego': 'Andrzeja Frycza Modrzewskiego',
  'Moniuszki S.': 'Stanisława Moniuszki',
