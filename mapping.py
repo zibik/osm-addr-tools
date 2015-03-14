@@ -408,6 +408,7 @@ addr_map = {
  'Waszyngtona Jerzego': 'Jerzego Waszyngtona',
  'Walasiewiczówny S.': 'Stanisławy Walasiewiczówny',
  'Wańkowicza Melchiora': 'Melchiora Wańkowicza',
+ 'Wejhera Jakuba': 'Jakuba Wejhera',
  'Wieniawskiego Henryka': 'Henryka Wieniawskiego',
  'Wieniawskiego': 'Henryka Wieniawskiego',
  '"Wira" Bartoszewskiego': 'Konrada "Wira" Bartoszewskiego',
