@@ -453,6 +453,7 @@ addr_map = {
  'Św. Jana': 'Świętego Jana',
  'Św. Kingi': 'Świętej Kingi',
  'Św. Marcina': 'Świętego Marcina',
+ 'Św. Marka': 'Świętego Marka',
  'Marcina św.': 'Świętego Marcina',
  'Św. Rozalii': 'Świętej Rozalii',
  'Św. Wojciecha': 'Świętego Wojciecha',
