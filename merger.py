@@ -419,7 +419,7 @@ class Merger(object):
                     found = True
                     self.__log.debug("Updating near node from: %s to %s", node.entry, entry)
                     self._update_node(node, entry)
-                    self.addFixme("Node updated from nearest node")
+                    entry.addFixme("Node updated from nearest node")
                 if found:
                     return True
             if any(map(lambda x: x.housenumber and x.city, candidates_same)):
