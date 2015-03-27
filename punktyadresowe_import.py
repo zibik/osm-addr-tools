@@ -193,6 +193,14 @@ class Address(object): #namedtuple('BaseAddress', ['housenumber', 'postcode', 's
         if self.id_ and other.id_ and self.id_ == other.id_:
             return True
         ret &= (other.housenumber.upper().replace(' ', '') == self.housenumber.upper().replace(' ', ''))
+        if ret and (not self.city or not other.city):
+            # we have similar housenumbers, but one of the points does't have a city
+            if self.sym_ul and other.sym_ul:
+                ret &= (self.sym_ul == other.sym_ul)
+            else:
+                ret &= (self.street == other.street)
+            return ret
+
         if self.simc and other.simc and self.simc == other.simc:
             ret &= True
         else:
