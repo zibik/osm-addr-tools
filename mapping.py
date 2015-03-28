@@ -658,6 +658,9 @@ def mapcity(cityname, simc):
     except KeyError:
         return cityname.replace(' - ', '-')
 
+import re
+__POSTCODE = re.compile('^[0-9]{2}-[0-9]{3}$')
+
 @functools.lru_cache(maxsize=None)
 def mappostcode(postcode, simc):
     __init()
@@ -669,6 +672,9 @@ def mappostcode(postcode, simc):
             __log.info("Inconsistent mapping for teryt:simc = %s to postcode. OSM values: %s", simc, ", ".join(ret))
             return postcode
         ret = next(iter(ret.keys())) # take first (and the only one) key
+        if not __POSTCODE.match(ret):
+            __log.info("Postcode for simc: %s doesn't look good: %s", simc, ret)
+            return postcode
         if ret != postcode:
             __log.info("Adding postcode %s for teryt:simc=%s", ret, simc)
         return ret
