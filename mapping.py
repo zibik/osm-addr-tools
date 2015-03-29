@@ -290,7 +290,6 @@ addr_map = {
  'Pobożnego H.': 'Henryka Pobożnego',
  'Polipol Aleja': 'aleja Polipol',
  'Poniatowskiego J.': 'Józefa Poniatowskiego',
- 'Poniatowskiego': 'Stanisława Augusta Poniatowskiego',
  'Popiełuszki Jerzego': 'Jerzego Popiełuszki',
  'Powstańców Wlkp.': 'Powstańców Wielkopolskich',
  'Poświatowskiej H.': 'Haliny Poświatowskiej',
