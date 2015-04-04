@@ -541,10 +541,9 @@ class Merger(object):
             for node in filter(lambda x: self._import_area_shape.contains(x.center), self.osmdb.getbyaddress(addr)):
                 if self._import_area_shape.contains(node.center) and ((
                         'e-mapa.net' in self.source_addr and node.source != self.source_addr and 'e-mapa.net' in node.source) or (
-                        self.source_addr = 'emuia.gugik.gov.pl' and 'e-mapa.net' in node.source)):
-                        # if we are importing from iMPA, and the point is from other iMPA import, then skip it
-                        # if we are importing from GUGiK, skip points from iMPA
-                        continue
+                        self.source_addr == 'emuia.gugik.gov.pl' and 'e-mapa.net' in node.source)):
+                    # if we are importing from iMPA, and the point is from other iMPA import, then skip it
+                    # if we are importing from GUGiK, skip points from iMPA
                     # report only points within area of interest
                     self.__log.debug("Marking node to delete - address %s does not exist: %s, %s", addr, node.osmid, str(node.entry))
                     node.addFixme('Check address existance')
