@@ -5,6 +5,7 @@ import logging
 import io
 import itertools
 import sys
+
 from osmdb import OsmDb, get_soup_center, distance
 import json
 from shapely.geometry import Point
@@ -248,7 +249,7 @@ class OsmAddress(Address):
 class Merger(object):
     __log = logging.getLogger(__name__).getChild('Merger')
 
-    def __init__(self, impdata, asis, terc, parallel_process_func=lambda func, elems: tuple(map(func, elems))):
+    def __init__(self, impdata, asis, terc, source_addr, parallel_process_func=lambda func, elems: tuple(map(func, elems))):
         self.impdata = impdata
         self.asis = asis
         self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
@@ -262,6 +263,7 @@ class Merger(object):
             self._import_area_shape = get_boundary_shape(terc)
         self._state_changes = []
         self._parallel_process_func = parallel_process_func
+        self.source_addr = source_addr
 
     def _create_index(self):
         self.osmdb.update_index()
@@ -537,7 +539,12 @@ class Merger(object):
         self.__log.debug("Marking %d not existing addresses", len(to_delete))
         for addr in filter(any, to_delete): # at least on addr field is filled in
             for node in filter(lambda x: self._import_area_shape.contains(x.center), self.osmdb.getbyaddress(addr)):
-                if self._import_area_shape.contains(node.center):
+                if self._import_area_shape.contains(node.center) and ((
+                        'e-mapa.net' in self.source_addr and node.source != self.source_addr and 'e-mapa.net' in node.source) or (
+                        self.source_addr = 'emuia.gugik.gov.pl' and 'e-mapa.net' in node.source)):
+                        # if we are importing from iMPA, and the point is from other iMPA import, then skip it
+                        # if we are importing from GUGiK, skip points from iMPA
+                        continue
                     # report only points within area of interest
                     self.__log.debug("Marking node to delete - address %s does not exist: %s, %s", addr, node.osmid, str(node.entry))
                     node.addFixme('Check address existance')
@@ -734,9 +741,11 @@ def main():
         imp = iMPA(args.impa, wms=args.wms)
         terc = imp.terc
         dataFunc = lambda: imp.getAddresses()
+        source_addr = args.impa + 'e-mapa.net'
     else:
         imp = GUGiK(args.terc)
         dataFunc = lambda: imp.getAddresses()
+        source_addr = 'emuia.gugik.gov.pl'
 
     if args.import_file:
         dataFunc = lambda: list(map(lambda x: Address.from_JSON(x), json.load(args.import_file)))
@@ -767,7 +776,7 @@ def main():
         __log.warning("Warning - address data is empty. Check your file/terc code")
 
     #m = Merger(data, addr, terc, parallel_process_func=parallel_map)
-    m = Merger(data, addr, terc)
+    m = Merger(data, addr, terc, source_addr)
     if not args.no_merge:
         m.post_func.append(m.merge_addresses)
     m.merge()
