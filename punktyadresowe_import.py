@@ -28,6 +28,7 @@ else:
     import urllib.request as urequest
     from urllib.request import urlopen
     str_normalize = lambda x: x
+    import urllib.request
 
 import argparse
 from bs4 import BeautifulSoup
@@ -40,6 +41,7 @@ import math
 import pyproj
 import re
 import uuid
+import ssl
 from shapely.geometry import Point
 
 from osmdb import OsmDb, distance
@@ -585,7 +587,10 @@ class GUGiK(AbstractImport):
         for i in self.divideBbox(*bbox):
             url = GUGiK.__base_url+",".join(map(str, i))
             self.__log.info("Fetching from EMUIA: %s", url)
-            soup = lxml.etree.fromstring(urlopen(url).read())
+
+            opener = get_ssl_no_verify_opener()
+
+            soup = lxml.etree.fromstring(opener.open(url).read())
             doc = soup.find('{http://www.opengis.net/kml/2.2}Document') # be namespace aware
             if doc is not None:
                 ret.extend(filter(
@@ -604,6 +609,15 @@ class AddressEncoder(json.JSONEncoder):
         if isinstance(obj, Address):
             return obj.to_JSON()
         return json.JSONEncoder.default(self, obj)
+
+def get_ssl_no_verify_opener():
+
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+
+    https_handler = urllib.request.HTTPSHandler(context=ssl_ctx, check_hostname=False)
+    return urllib.request.build_opener(https_handler)
 
 def main():
     parser = argparse.ArgumentParser(description="Downloads data from iMPA and saves in OSM or JSON format. CC-BY-SA 3.0 @ WiktorN. Filename is <gmina>.osm or <gmina>.json")
