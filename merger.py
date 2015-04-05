@@ -5,8 +5,9 @@ import logging
 import io
 import itertools
 import sys
+import functools
 
-from osmdb import OsmDb, get_soup_center, distance
+from osmdb import OsmDb, get_soup_center, distance, prepare_object_pos
 import json
 from shapely.geometry import Point
 import shapely.geometry.base
@@ -15,6 +16,7 @@ import overpass
 from utils import parallel_map
 from lxml.builder import E
 import lxml.etree
+import converter
 
 __log = logging.getLogger(__name__)
 
@@ -60,8 +62,14 @@ class OsmAddress(Address):
         return self._soup[key]
 
     @staticmethod
-    def from_soup(obj):
+    def from_soup(obj, obj_loc_cache=None):
         cache = obj.get('tags', {})
+
+        loc = None
+        if obj_loc_cache:
+            loc = obj_loc_cache.get(obj['type'] + ':' + str(obj['id']))
+        if not loc:
+            loc = get_soup_center(obj)
 
         ret = OsmAddress(
             housenumber = cache.get('addr:housenumber', ''),
@@ -71,7 +79,7 @@ class OsmAddress(Address):
             sym_ul      = cache.get('addr:street:sym_ul', ''),
             simc        = cache.get('addr:city:simc', ''),
             source      = cache.get('source:addr', ''),
-            location    = dict(zip(('lat', 'lon'), get_soup_center(obj))),
+            location    = dict(zip(('lat', 'lon'), loc)),
             id_         = cache.get('ref:addr', ''),
             soup        = obj
         )
@@ -96,15 +104,7 @@ class OsmAddress(Address):
 
     @property
     def center(self):
-        node = self._soup
-        try:
-            return Point(float(node['lon']), float(node['lat']))
-        except KeyError:
-            b = node['bounds']
-            return Point(
-                    (sum(map(float, (b['minlon'], b['maxlon']))))/2,
-                    (sum(map(float, (b['minlat'], b['maxlat']))))/2,
-            )
+        return Point(float(self.location['lon']), float(self.location['lat']))
 
     def distance(self, other):
         return distance(self.center, other.center)
@@ -252,7 +252,9 @@ class Merger(object):
     def __init__(self, impdata, asis, terc, source_addr, parallel_process_func=lambda func, elems: tuple(map(func, elems))):
         self.impdata = impdata
         self.asis = asis
-        self.osmdb = OsmDb(self.asis, valuefunc=OsmAddress.from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
+        obj_loc_cache = prepare_object_pos(asis['elements'])
+        from_soup = functools.partial(OsmAddress.from_soup, obj_loc_cache = obj_loc_cache)
+        self.osmdb = OsmDb(self.asis, valuefunc=from_soup, indexes={'address': lambda x: x.get_index_key(), 'id': lambda x: x.osmid})
         self._new_nodes = []
         self._updated_nodes = []
         self._node_id = 0
@@ -583,7 +585,7 @@ class Merger(object):
                 lambda x: x[0].similar_to(x[1]),
                 itertools.combinations(nodes, 2)
                 )):
-                if building['tags'].get('addr:housenumber') and not nodes[0].similar_to(OsmAddress.from_soup(building)):
+                if building['tags'].get('addr:housenumber') and not nodes[0].similar_to(self.osmdb.getbyid("%s:%s" % (building['type'], building['id']))[0]):
                     # if building has different address, than we want to put
                     self.__log.info("Skipping merging address: %s, as building already has an address: %s.", str(nodes[0].entry), OsmAddress.from_soup(building))
                     for node in nodes:
@@ -756,7 +758,7 @@ def main():
 
     __log.info("Working with TERC: %s", terc)
     if args.addresses_file:
-        addrFunc = lambda: args.addresses_file.read()
+        addrFunc = lambda: converter.osm_to_json(lxml.etree.parse(args.addresses_file))
     else:
         # union with bounds of administrative boundary
         s = min(map(lambda x: x.center.y, data))

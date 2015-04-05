@@ -34,7 +34,7 @@ def get_soup_position_cached(soup):
         return (float(soup['lat']), float(soup['lon'])) * 2
 
     if soup['type'] in ('way', 'relation'):
-        b = soup['bounds']
+        b = soup.get('bounds')
         if b:
             return tuple(
                     map(float,
@@ -49,6 +49,52 @@ def get_soup_center(soup):
     # lat, lon
     pos = get_soup_position(soup)
     return (pos[0] + pos[2])/2, (pos[1] + pos[3])/2
+
+def prepare_object_pos(elem_lst):
+    def elem_loc(elm):
+        return (float(elm['lat']), float(elm['lon']))
+    def elem_id(elm):
+        return "%s:%s" % (elm['type'], elm['id'])
+
+    obj_cache = dict((elem_id(x), x) for x in elem_lst)
+
+    def bbox(pos):
+        return (
+            min(x[0] for x in pos),
+            min(x[1] for x in pos),
+            max(x[0] for x in pos),
+            max(x[1] for x in pos)
+        )
+
+    def handle_node(elm):
+        return bbox([elem_loc(elm),])
+
+    def handle_way(elm):
+        pos = [elem_loc(obj_cache.get('node:' + str(x))) for x in elm['nodes']]
+        return bbox(pos)
+
+    def handle_relattion(elm):
+        ret = [routing[member['type']]((obj_cache["%s:%s" % (member['type'], member['ref'])])) for member in elm['members']]
+        return bbox(ret)
+
+    routing = {
+        'relation': handle_relattion,
+        'way': handle_way,
+        'node': handle_node
+    }
+
+    def bbox_to_center(pos):
+        return (
+            (pos[0] + pos[2]) / 2, 
+            (pos[1] + pos[3]) / 2
+        )
+
+    return dict(
+        (
+            elem_id(elm), 
+            bbox_to_center(routing[elm['type']](elm))
+        ) for elm in elem_lst)
+    
 
 __geod = pyproj.Geod(ellps="WGS84")
 def distance(a, b):
@@ -125,7 +171,8 @@ class OsmDb(object):
         self.__custom_indexes = dict((x, {}) for x in self.__custom_indexes_conf.keys())
 
         for (key, val) in self.__osm_obj.items():
-            pos = get_soup_position(val._raw)
+            pos = self.get_shape(val._raw).centroid
+            pos = (pos.y, pos.x)
             if pos:
                 _id = _get_id(val._raw)
                 self.__index.insert(_id, pos)
