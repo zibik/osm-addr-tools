@@ -263,6 +263,13 @@ class OsmDb(object):
                     ret = val
                 else:
                     ret = ret.union(val)
+            # handle broken (only inner members) relations
+            if not ret and len(outer) == 0 and len(inner) > 0:
+                for val in inner:
+                    if not ret:
+                        ret = val
+                    else:
+                        ret = ret.union(val)
             return ret
 
     def get_closed_ways(self, ways):
