@@ -270,6 +270,8 @@ class OsmDb(object):
                         ret = val
                     else:
                         ret = ret.union(val)
+            if not ret:
+                raise ValueError("Broken geometry for relation: %s" % (soup['id'],))
             return ret
 
     def get_closed_ways(self, ways):
