@@ -17,6 +17,7 @@ addr_map = {
  '3-ego Maja': '3 Maja',
  '35 Lecia PRL': '35-lecia PRL',
  '9-go Maja': '9 Maja',
+ 'A. Struga': 'Andrzeja Struga',
  'Abramskiego J. ks.': 'Księdza Jana Abramskiego',
  'Al. H. Kołłątaja': 'aleja Hugona Kołłątaja',
  'Al. Spacerowa': 'aleja Spacerowa',
