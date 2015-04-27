@@ -310,7 +310,7 @@ out bb;
             osmdb = OsmDb(data)
             self.shape = osmdb.get_shape(relation)
 
-    def getBbox():
+    def getBbox(self):
         """
         this functions returns bbox of imported area using WGS84 lonlat as tuple:
         (minlon, minlat, maxlon, maxlat)
