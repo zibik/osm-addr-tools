@@ -392,7 +392,10 @@ class iMPA(AbstractImport):
         url = 'http://%s.e-mapa.net/application/system/init.php' % (gmina,)
         self.__log.info(url)
         data = urlopen(url).read().decode('utf-8')
-        init_data = json.loads(data)
+        try:
+            init_data = json.loads(data)
+        except ValueError as e:
+            raise ValueError("Failure loading data from: %s" % (url,), e)
 
         self.setBboxFrom2180(init_data['spatialExtent'])
         self.terc = init_data.get('teryt')
