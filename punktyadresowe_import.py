@@ -291,7 +291,7 @@ class AbstractImport(object):
             query = """
 [out:json];
 relation
-    ["teryt:terc"="%s"]
+    ["teryt:terc"="^%s"]
     ["boundary"="administrative"]
     ["admin_level"="7"];
 out bb;

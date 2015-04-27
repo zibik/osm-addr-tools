@@ -692,7 +692,7 @@ def get_boundary_shape(terc):
 [out:json]
 [timeout:600];
 relation
-    ["teryt:terc"~"%s"];
+    ["teryt:terc"~"^%s"];
 out meta bb qt;
 >;
 out meta bb qt;
@@ -700,6 +700,7 @@ out meta bb qt;
     soup = json.loads(overpass.query(query))
     osmdb = OsmDb(soup)
     rel = tuple(x for x in soup['elements'] if x['type'] == 'relation')[0]
+    __log.info("Loading shape of import area - relation id: %s, relation name: %s" , rel['id'], rel['tags'].get('name'))
     return osmdb.get_shape(rel)
 
 
