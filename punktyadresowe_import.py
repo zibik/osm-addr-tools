@@ -299,7 +299,10 @@ out bb;
 out bb;
             """ % (terc,)
             data = json.loads(overpass.query(query))
-            relation  = tuple(x for x in data['elements'] if x['type'] == 'relation')[0]
+            try:
+                relation  = tuple(x for x in data['elements'] if x['type'] == 'relation')[0]
+            except IndexError as e:
+                raise IndexError("No relation found in OSM for TERC: %s" % (terc,), e)
             bounds = relation['bounds']
             self.bbox = (
                 bounds['minlon'],
