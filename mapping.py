@@ -319,6 +319,7 @@ addr_map = {
  'Roli-Żymierskiego M. marsz.': 'marszałka Michała Roli-Żymierskiego',
  'Roosevelta': 'Franklina Delano Roosevelta',
  'Ruszczyca Ferdynanda': 'Ferdynanda Ruszczyca',
+ 'Rynek Rynek': 'Rynek',
  'Rzeckiego I.': 'Ignacego Rzeckiego',
  'Rzeckiego': 'Ignacego Rzeckiego',
  'Różyckiego Ludomira': 'Ludomira Różyckiego',
