@@ -606,7 +606,7 @@ def __init():
         with __init_lock:
             if not __is_initialized:
                 __mapping_symul = storedDict(lambda: getDict('addr:street:sym_ul', 'addr:street'), __DB_OSM_TERYT_SYMUL)
-                __mapping_simc = storedDict(lambda: getDict('addr:city:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC)
+                __mapping_simc = storedDict(lambda: getDict('teryt:simc' , 'name', ['place']), __DB_OSM_TERYT_SIMC) # check based on place names, not addresses
                 __teryt_ulic = storedDict(downloadULIC, __DB_TERYT_ULIC)
                 __mapping_simc_postcode = storedDict(lambda: getDict('teryt:simc', 'addr:postcode', ['place',]), __DB_OSM_SIMC_POSTCODE)
                 __is_initialized = True
