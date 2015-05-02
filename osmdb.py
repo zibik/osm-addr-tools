@@ -234,6 +234,14 @@ class OsmDb(object):
                         (self.__osm_obj[(x['type'], x['ref'])] for x in soup['members'])
                     )
                 ).centroid
+
+            # handle relation type 'building' properly for 3D buildings
+            if soup['tags'].get('type') == 'building':
+                outline_members = [x for x in soup['members'] if x['role'] == 'outline']
+                if len(outline_members) != 1:
+                    raise ValueError("Broken geometry for relation: %s. Missing outline role" % (soup['id'],))
+                return self.__osm_obj[('way', outline_members[0]['ref'])].shape
+
             # returns only outer ways, no exclusion for inner ways
             # hardest one
             # outer ways
