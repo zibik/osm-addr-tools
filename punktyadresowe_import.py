@@ -395,20 +395,36 @@ class iMPA(AbstractImport):
         url = 'http://%s.e-mapa.net/application/system/init.php' % (gmina,)
         self.__log.info(url)
         data = urlopen(url).read().decode('utf-8')
+        init_data = {}
         try:
             init_data = json.loads(data)
         except ValueError as e:
-            raise ValueError("Failure loading data from: %s" % (url,), e)
+            # ignore json parsing erros. If there is no json parsed data, try to parse
+            # strings manually...
+            pass
 
-        self.setBboxFrom2180(init_data['spatialExtent'])
-        self.terc = init_data.get('teryt')
+        def extract(begin, end):
+            start_pos = data.rfind(begin)
+            end_pos = data.find(end, start_pos)
+            if start_pos < 0 or end_pos < 0:
+                return None
+            return data[start_pos + len(begin):end_pos]
 
-        address_layers = list(
-                    filter(
-                        lambda x: x.get('title') and x['title'].upper() == 'ADRESY I ULICE',
-                        init_data.get('map', {}).get('services', [{},])
-                    )
-            )
+        if len(init_data) > 0:
+            self.setBboxFrom2180(init_data['spatialExtent'])
+            self.terc = init_data.get('teryt')
+            address_layers = list(
+                        filter(
+                            lambda x: x.get('title') and x['title'].upper() == 'ADRESY I ULICE',
+                            init_data.get('map', {}).get('services', [{},])
+                        )
+                )
+        else:
+            bbox = extract('"spatialExtent":[', '],"').split(',')
+            self.setBboxFrom2180(list(map(float, bbox)))
+            self.terc = extract('"teryt":"', '","')
+            address_layers = []
+
         if len(address_layers) == 0:
             self.__log.warning('No information about address layer in init.php')
             self.__log.debug(data)
