@@ -540,7 +540,7 @@ class GUGiK(AbstractImport):
     __MAX_BBOX_X = 20000
     __MAX_BBOX_Y = 45000
     __PRECISION = 10
-    __base_url = "http://emuia.gugik.gov.pl/wmsproxy/emuia/wms?SERVICE=WMS&FORMAT=application/vnd.google-earth.kml+xml&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetMap&LAYERS=emuia:layer_adresy_labels&STYLES=&SRS=EPSG:2180&WIDTH=16000&HEIGHT=16000&BBOX="
+    __base_url = "http://emuia1.gugik.gov.pl/wmsproxy/emuia/wms?SERVICE=WMS&FORMAT=application/vnd.google-earth.kml+xml&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetMap&LAYERS=emuia:layer_adresy_labels&STYLES=&SRS=EPSG:2180&WIDTH=16000&HEIGHT=16000&BBOX="
     __log = logging.getLogger(__name__).getChild('GUGiK')
 
     def __init__(self, terc):
@@ -577,7 +577,7 @@ class GUGiK(AbstractImport):
                 addr_kv[str_normalize('NAZWA_MIEJSCOWOSCI')],
                 addr_kv.get(str_normalize('TERYT_ULICY')),
                 addr_kv.get(str_normalize('TERYT_MIEJSCOWOSCI')),
-                'emuia.gugik.gov.pl',
+                'emuia1.gugik.gov.pl',
                 {'lat': coords[1], 'lon': coords[0]},
                 addr_kv.get(str_normalize('IDENTYFIKATOR_PUNKTU'))
         )
