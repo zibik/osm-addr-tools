@@ -27,7 +27,7 @@ def get_IMPA_Merger(name):
     addr =  getAddresses(map(str,(s, w, n, e)))
 
     
-    m = Merger(data, addr, terc)
+    m = Merger(data, addr, terc, "%s.e-mapa.net" % name)
     m.post_func.append(m.merge_addresses)
     m.merge()
     return m
