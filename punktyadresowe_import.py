@@ -583,6 +583,7 @@ class GUGiK(AbstractImport):
         )
         ret.status = addr_kv[str_normalize('STATUS')]
         ret.wazny_do = addr_kv.get(str_normalize('WAZNY_DO'))
+        ret.status_budynku = addr_kv.get(str_normalize('STATUS_BUDYNKU'))
         if not ret.wazny_do:
             ret.wazny_do = addr_kv.get(str_normalize('WERSJA_DO'))
         return ret
@@ -597,6 +598,9 @@ class GUGiK(AbstractImport):
             return False
         if '?' in addr.housenumber or 'bl' in addr.housenumber:
             self.__log.debug('Ignoring address %s because has strange housenumber: %s', addr, addr.housenumber)
+            return False
+        if addr.status_budynku.upper() == 'PROGNOZOWANY':
+            self.__log.debug('Ignoring address %s because STATUS_BUDYNKU = %s', addr, addr.status_budynku)
             return False
         if not addr.get_point().within(self.shape):
             # do not report anything about this, this is normal
