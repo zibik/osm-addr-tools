@@ -51,7 +51,7 @@ def merge_addr(terc):
     logIO = io.StringIO()
     logging.basicConfig(level=10, handlers=[logging.StreamHandler(logIO),])
     addr = json.loads(overpass.getAddresses(terc))
-    m = Merger([], addr, terc)
+    m = Merger([], addr, terc, "emuia.gugik.gov.pl")
     m._create_index()
     m.merge_addresses()
     return make_response(m.get_incremental_result(logIO), 200)
