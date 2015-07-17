@@ -599,7 +599,7 @@ class GUGiK(AbstractImport):
         if '?' in addr.housenumber or 'bl' in addr.housenumber:
             self.__log.debug('Ignoring address %s because has strange housenumber: %s', addr, addr.housenumber)
             return False
-        if addr.status_budynku.upper() == 'PROGNOZOWANY':
+        if addr.status_budynku and addr.status_budynku.upper() == 'PROGNOZOWANY':
             self.__log.debug('Ignoring address %s because STATUS_BUDYNKU = %s', addr, addr.status_budynku)
             return False
         if not addr.get_point().within(self.shape):
